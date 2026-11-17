@@ -876,9 +876,14 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ChipRow(
-                          labels: _repeatModes,
-                          selected: _repeatMode,
+                        BottomSelectField<String>(
+                          title: '选择重复方式',
+                          value: _repeatMode,
+                          icon: Icons.repeat_rounded,
+                          options: [
+                            for (final mode in _repeatModes)
+                              BottomSelectOption(value: mode, label: mode),
+                          ],
                           onChanged: (value) {
                             FocusManager.instance.primaryFocus?.unfocus();
                             setState(() {
@@ -901,8 +906,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                                     '周${CareTaskDefinition.weekdayLabel(weekday)}',
                                   ),
                                   selected: _customWeekdays.contains(weekday),
+                                  showCheckmark: false,
                                   selectedColor: AppColors.brandWash,
-                                  checkmarkColor: AppColors.brand,
                                   side: BorderSide(
                                     color: _customWeekdays.contains(weekday)
                                         ? AppColors.brandLine
