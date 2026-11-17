@@ -66,24 +66,16 @@ class _LegacyLocalLoginScreenState extends State<LegacyLocalLoginScreen> {
                 constraints: const BoxConstraints(maxWidth: 390),
                 child: Column(
                   children: [
-                    Container(
+                    SizedBox(
                       width: 82,
                       height: 82,
-                      decoration: BoxDecoration(
-                        color: AppColors.brand,
+                      child: ClipRRect(
                         borderRadius: BorderRadius.circular(26),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x331D4A3D),
-                            blurRadius: 26,
-                            offset: Offset(0, 13),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.pets_rounded,
-                        size: 40,
-                        color: Color(0xFFF4F1E6),
+                        child: Image.asset(
+                          'assets/images/app_icon.png',
+                          fit: BoxFit.cover,
+                          semanticLabel: '栖护 App 图标',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -1002,20 +994,16 @@ class _LoginBrandPanel extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
+                    SizedBox(
                       width: 36,
                       height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(11),
+                        child: Image.asset(
+                          'assets/images/app_icon.png',
+                          fit: BoxFit.cover,
+                          semanticLabel: '栖护 App 图标',
                         ),
-                      ),
-                      child: const Icon(
-                        Icons.pets_rounded,
-                        size: 19,
-                        color: Color(0xFFD9C38F),
                       ),
                     ),
                     const SizedBox(width: 9),

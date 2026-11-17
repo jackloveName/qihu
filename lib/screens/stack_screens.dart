@@ -5,7 +5,6 @@ import '../app_theme.dart';
 import '../date_utils.dart';
 import '../knowledge_content.dart';
 import '../models.dart';
-import '../services/app_update_service.dart';
 import '../sheets.dart';
 import '../widgets/animal_art.dart';
 import '../widgets/app_widgets.dart';
@@ -1289,7 +1288,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _unit = '公制 · °C / g / cm';
-  bool _checkingUpdate = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1314,13 +1312,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         SpeciesTemplateLibraryScreen(state: widget.state),
                   ),
                 ),
-              ),
-              MenuRow(
-                icon: Icons.system_update_alt_rounded,
-                title: _checkingUpdate ? '正在检查更新…' : '检查更新',
-                subtitle: _checkingUpdate ? '正在连接更新服务' : '手动获取最新版本与更新说明',
-                tone: MenuTone.blue,
-                onTap: _checkingUpdate ? () {} : () => _checkUpdate(context),
               ),
             ],
           ),
@@ -1374,23 +1365,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _checkUpdate(BuildContext context) async {
-    if (!widget.state.updateChecksAllowed) {
-      showAppMessage(context, '当前账号暂未开放更新检查');
-      return;
-    }
-    setState(() => _checkingUpdate = true);
-    try {
-      await AppUpdateService().checkAndShow(
-        context,
-        manual: true,
-        borrowFlag: widget.state.borrowFlag,
-      );
-    } finally {
-      if (mounted) setState(() => _checkingUpdate = false);
-    }
   }
 }
 
