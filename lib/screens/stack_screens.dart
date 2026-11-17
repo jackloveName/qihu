@@ -660,7 +660,39 @@ class _GrowthChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final values = pet.weights;
+    final recordedValues = pet.weights.where((value) => value > 0).toList();
+    final values = recordedValues.length > 6
+        ? recordedValues.sublist(recordedValues.length - 6)
+        : recordedValues;
+    if (values.isEmpty) {
+      return PaperCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Text('体重变化', style: AppText.display(15.5)),
+                const Spacer(),
+                Text(
+                  '近 6 次记录',
+                  style: AppText.body(
+                    10,
+                    color: AppColors.faint,
+                    weight: FontWeight.w600,
+                    spacing: 0.6,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            const EmptyState(
+              title: '还没有体重记录',
+              message: '记录第一次体重后，这里会展示最近 6 次变化趋势。',
+            ),
+          ],
+        ),
+      );
+    }
     final max = values.reduce((a, b) => a > b ? a : b);
     final min = values.reduce((a, b) => a < b ? a : b);
     final range = (max - min).abs() < 0.001 ? 1.0 : max - min;

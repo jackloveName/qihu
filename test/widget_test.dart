@@ -1435,6 +1435,33 @@ void main() {
     expect(find.textContaining('每日称重', findRichText: true), findsOneWidget);
   });
 
+  testWidgets('生长趋势只显示最近六次有效体重', (tester) async {
+    final state = AppState.inMemory(seed: false);
+    final pet = state.addPet(
+      species: PetSpecies.cat,
+      name: '测试猫',
+      environment: '客厅',
+    )!;
+    for (var weight = 11; weight <= 20; weight++) {
+      state.updatePetMetrics(pet.id, weight: '$weight g');
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: PetDetailScreen(state: state, petId: pet.id),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('生长趋势'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('14'), findsNothing);
+    for (final weight in [15, 16, 17, 18, 19, 20]) {
+      expect(find.text('$weight'), findsOneWidget);
+    }
+  });
+
   testWidgets('重新打开体重记录时数值保持为空', (tester) async {
     final state = AppState.inMemory();
     await tester.pumpWidget(
