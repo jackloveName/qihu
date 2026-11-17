@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>栖护 App 图标方案</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #15211c;
+      background:
+        radial-gradient(circle at 86% 8%, rgba(255, 255, 255, .78), transparent 29%),
+        radial-gradient(circle at 5% 92%, rgba(185, 204, 191, .52), transparent 31%),
+        #efede4;
+      font-family: "PingFang SC", "Noto Sans CJK SC", sans-serif;
+    }
+    main { width: 1480px; padding: 62px 72px 76px; }
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 36px;
+    }
+    .eyebrow {
+      margin: 0 0 9px;
+      color: #6c7b73;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2.2px;
+    }
+    h1 {
+      margin: 0;
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 43px;
+      line-height: 1.15;
+      letter-spacing: -.8px;
+    }
+    .intro {
+      width: 470px;
+      margin: 0 0 2px;
+      color: #68756e;
+      font-size: 15px;
+      line-height: 1.75;
+      text-align: right;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+    }
+    .card {
+      min-height: 514px;
+      padding: 27px 28px 25px;
+      border: 1px solid rgba(198, 195, 181, .92);
+      border-radius: 28px;
+      background: rgba(252, 251, 247, .86);
+      box-shadow: 0 15px 42px rgba(21, 33, 28, .055);
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 19px;
+    }
+    .number {
+      color: #a2854a;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .category {
+      color: #7b857f;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .4px;
+    }
+    .icon-wrap {
+      position: relative;
+      display: grid;
+      height: 278px;
+      place-items: center;
+      overflow: hidden;
+      border-radius: 22px;
+      background: #e7e3d8;
+    }
+    .icon-wrap::before {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.33), transparent 45%),
+        radial-gradient(circle at 78% 22%, rgba(255,255,255,.34), transparent 36%);
+      content: "";
+    }
+    .large-icon {
+      position: relative;
+      width: 218px;
+      height: 218px;
+      overflow: hidden;
+      border-radius: 51px;
+      box-shadow: 0 18px 35px rgba(18, 38, 31, .2);
+    }
+    .large-icon img { width: 100%; height: 100%; display: block; }
+    .body-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      padding-top: 20px;
+    }
+    .copy { flex: 1; }
+    h2 {
+      margin: 0 0 7px;
+      font-family: "Songti SC", "Noto Serif CJK SC", serif;
+      font-size: 23px;
+      line-height: 1.2;
+    }
+    .desc {
+      margin: 0;
+      color: #6b7770;
+      font-size: 12.5px;
+      line-height: 1.65;
+    }
+    .sizes {
+      display: flex;
+      flex: 0 0 104px;
+      align-items: flex-end;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .small-icon {
+      overflow: hidden;
+      border-radius: 17px;
+      box-shadow: 0 7px 14px rgba(18, 38, 31, .16);
+    }
+    .small-icon img { width: 100%; height: 100%; display: block; }
+    .size-56 { width: 56px; height: 56px; border-radius: 14px; }
+    .size-36 { width: 36px; height: 36px; border-radius: 9px; }
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 29px;
+      color: #77827b;
+      font-size: 12px;
+    }
+    .palette { display: flex; align-items: center; gap: 9px; }
+    .swatch { width: 17px; height: 17px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="eyebrow">栖护 · APP ICON DIRECTIONS</p>
+      <h1>六款 App 图标方案</h1>
+    </div>
+    <p class="intro">全部沿用首页的森林绿、暖米色与黄铜色。<br>以少元素、高识别度为原则，兼顾桌面大小尺寸。</p>
+  </header>
+
+  <section class="grid">
+    <article class="card">
+      <div class="card-head"><span class="number">01</span><span class="category">主推 · 高识别</span></div>
+      <div class="icon-wrap">
+        <div class="large-icon"><img src="app-icon-1-forest-paw.svg" alt="森林爪印图标"></div>
+      </div>
+      <div class="body-row">
+        <div class="copy"><h2>森语爪印</h2><p class="desc">爪印与叶形融合，正面表达宠物照护。深色底最醒目，缩到小尺寸仍然清楚。</p></div>
+        <div class="sizes">
+          <div class="small-icon size-56"><img src="app-icon-1-forest-paw.svg" alt=""></div>
+          <div class="small-icon size-36"><img src="app-icon-1-forest-paw.svg" alt=""></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="number">02</span><span class="category">品牌稳重</span></div>
+      <div class="icon-wrap">
+        <div class="large-icon"><img src="app-icon-2-warm-home.svg" alt="暖屋相伴图标"></div>
+      </div>
+      <div class="body-row">
+        <div class="copy"><h2>暖屋相伴</h2><p class="desc">用屋檐、猫咪和暖阳概括“在家照护”。形象最友好，也最适合讲品牌故事。</p></div>
+        <div class="sizes">
+          <div class="small-icon size-56"><img src="app-icon-2-warm-home.svg" alt=""></div>
+          <div class="small-icon size-36"><img src="app-icon-2-warm-home.svg" alt=""></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="number">03</span><span class="category">多宠用户</span></div>
+      <div class="icon-wrap">
+        <div class="large-icon"><img src="app-icon-3-two-pets.svg" alt="双宠依偎图标"></div>
+      </div>
+      <div class="body-row">
+        <div class="copy"><h2>双宠依偎</h2><p class="desc">猫与犬并肩出现，强调多宠物家庭。轮廓差异明显，信息量比单一动物更丰富。</p></div>
+        <div class="sizes">
+          <div class="small-icon size-56"><img src="app-icon-3-two-pets.svg" alt=""></div>
+          <div class="small-icon size-36"><img src="app-icon-3-two-pets.svg" alt=""></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="number">04</span><span class="category">自然疗愈</span></div>
+      <div class="icon-wrap">
+        <div class="large-icon"><img src="app-icon-4-leaf-care.svg" alt="叶脉守护图标"></div>
+      </div>
+      <div class="body-row">
+        <div class="copy"><h2>叶脉守护</h2><p class="desc">叶片像一枚养护徽章，爪印与枝脉相连。色调最轻，偏向温柔、有呼吸感的路线。</p></div>
+        <div class="sizes">
+          <div class="small-icon size-56"><img src="app-icon-4-leaf-care.svg" alt=""></div>
+          <div class="small-icon size-36"><img src="app-icon-4-leaf-care.svg" alt=""></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="number">05</span><span class="category">精致质感</span></div>
+      <div class="icon-wrap">
+        <div class="large-icon"><img src="app-icon-5-gold-seal.svg" alt="金环印记图标"></div>
+      </div>
+      <div class="body-row">
+        <div class="copy"><h2>金环印记</h2><p class="desc">用黄铜细框把爪印做成私人养护印记。最克制、成熟，适合后续扩展会员体系。</p></div>
+        <div class="sizes">
+          <div class="small-icon size-56"><img src="app-icon-5-gold-seal.svg" alt=""></div>
+          <div class="small-icon size-36"><img src="app-icon-5-gold-seal.svg" alt=""></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><span class="number">06</span><span class="category">亲和可爱</span></div>
+      <div class="icon-wrap">
+        <div class="large-icon"><img src="app-icon-6-cat-sun.svg" alt="暖光猫脸图标"></div>
+      </div>
+      <div class="body-row">
+        <div class="copy"><h2>暖光猫脸</h2><p class="desc">表情最直接、情绪最亲和。适合希望第一眼就传递可爱与陪伴感的产品定位。</p></div>
+        <div class="sizes">
+          <div class="small-icon size-56"><img src="app-icon-6-cat-sun.svg" alt=""></div>
+          <div class="small-icon size-36"><img src="app-icon-6-cat-sun.svg" alt=""></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <footer>
+    <span>预览已包含 iOS 圆角裁切与 56 / 36 px 小尺寸检查</span>
+    <span class="palette">品牌色
+      <i class="swatch" style="background:#12392f"></i>
+      <i class="swatch" style="background:#c6a663"></i>
+      <i class="swatch" style="background:#f4ead8"></i>
+    </span>
+  </footer>
+</main>
+</body>
+</html>

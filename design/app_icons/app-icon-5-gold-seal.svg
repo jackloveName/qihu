@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="106" y1="80" x2="930" y2="952" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173F34"/>
+      <stop offset="1" stop-color="#0B241D"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="272" y1="258" x2="760" y2="788" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E2C784"/>
+      <stop offset="1" stop-color="#B9904B"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect x="112" y="112" width="800" height="800" rx="216" fill="none" stroke="url(#gold)" stroke-width="18"/>
+  <circle cx="512" cy="512" r="286" fill="none" stroke="#F2E7D1" stroke-opacity=".12" stroke-width="4"/>
+  <circle cx="512" cy="512" r="204" fill="#F1E5CD" fill-opacity=".055"/>
+  <g transform="rotate(-5 512 522)" fill="#F2E7D1">
+    <ellipse cx="382" cy="472" rx="60" ry="79" transform="rotate(-28 382 472)"/>
+    <ellipse cx="466" cy="396" rx="62" ry="82" transform="rotate(-10 466 396)"/>
+    <ellipse cx="558" cy="396" rx="62" ry="82" transform="rotate(10 558 396)"/>
+    <ellipse cx="642" cy="472" rx="60" ry="79" transform="rotate(28 642 472)"/>
+    <path d="M512 548C468 548 434 580 434 620C434 654 457 681 489 691C498 701 526 701 535 691C567 681 590 654 590 620C590 580 556 548 512 548Z"/>
+  </g>
+  <path d="M710 776C751 748 780 709 799 662" fill="none" stroke="#D2B36B" stroke-width="8" stroke-linecap="round"/>
+</svg>
