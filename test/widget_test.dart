@@ -524,6 +524,14 @@ void main() {
     expect(find.text('必须更新'), findsOneWidget);
     expect(find.text('iOS 版本必须更新'), findsOneWidget);
     expect(find.text('打开 App Store'), findsOneWidget);
+    final updateIcon = tester.widget<Image>(
+      find.byKey(const ValueKey('update-app-icon')),
+    );
+    expect(updateIcon.image, isA<AssetImage>());
+    expect(
+      (updateIcon.image as AssetImage).assetName,
+      'assets/images/app_icon.png',
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -549,6 +557,21 @@ void main() {
 
     expect(find.text('下载并安装'), findsOneWidget);
     expect(find.textContaining('安装结束后 App 会自动重启'), findsOneWidget);
+  });
+
+  testWidgets('borrowFlag 非 1 时不执行更新检查', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: SizedBox())),
+    );
+    final context = tester.element(find.byType(Scaffold));
+
+    final result = await AppUpdateService().checkAndShow(
+      context,
+      borrowFlag: 0,
+    );
+
+    expect(result.status, UpdateCheckStatus.skipped);
+    expect(find.byKey(const ValueKey('app-update-dialog')), findsNothing);
   });
 
   test('状态与任务执行记录可以恢复', () async {
@@ -1205,6 +1228,28 @@ void main() {
     expect(state.taskDefinitions, isEmpty);
     expect(state.tasks, isEmpty);
     expect(state.guestExpiresAt, isNull);
+  });
+
+  test('已有云端资料登录后不再进入首次资料引导', () {
+    final state = AppState.inMemory(seed: false)
+      ..signOut()
+      ..memberOnboardingCompleted = false;
+
+    state.startMemberLogin(profileCompleted: true);
+
+    expect(state.memberOnboardingCompleted, isTrue);
+    expect(state.needsMemberOnboarding, isFalse);
+  });
+
+  test('borrowFlag 严格等于 1 才允许更新检查', () {
+    final state = AppState.inMemory();
+    expect(state.updateChecksAllowed, isFalse);
+
+    state.updateBorrowFlag(0);
+    expect(state.updateChecksAllowed, isFalse);
+
+    state.updateBorrowFlag(1);
+    expect(state.updateChecksAllowed, isTrue);
   });
 
   test('提醒快照会随健康复看时间变化', () {

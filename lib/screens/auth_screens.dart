@@ -654,13 +654,13 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
     });
   }
 
-  Future<void> _completeLogin() async {
+  Future<void> _completeLogin({bool profileCompleted = false}) async {
     _countdownTimer?.cancel();
     if (widget.state.isGuest) {
       await LocalImageStore.deleteAll();
     }
     unawaited(PrivacyConsentStore.accept());
-    widget.state.startMemberLogin();
+    widget.state.startMemberLogin(profileCompleted: profileCompleted);
   }
 
   Future<void> _sendRemoteCode(BuildContext context) async {
@@ -750,7 +750,8 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
         city: widget.state.city,
         careTags: widget.state.careTags,
       );
-      await _completeLogin();
+      widget.state.updateBorrowFlag(profile.borrowFlag);
+      await _completeLogin(profileCompleted: profile.hasProfileDetails);
     } on Object catch (error) {
       if (context.mounted) {
         showAppMessage(

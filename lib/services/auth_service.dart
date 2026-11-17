@@ -27,6 +27,7 @@ class UserProfile {
     this.avatarPath = '',
     this.birthday = '',
     this.gender = '',
+    this.borrowFlag,
   });
 
   final String name;
@@ -34,6 +35,15 @@ class UserProfile {
   final String avatarPath;
   final String birthday;
   final String gender;
+  final int? borrowFlag;
+
+  bool get hasProfileDetails {
+    final displayName = name.trim();
+    return (displayName.isNotEmpty && displayName != phone.trim()) ||
+        avatarPath.trim().isNotEmpty ||
+        birthday.trim().isNotEmpty ||
+        gender.trim().isNotEmpty;
+  }
 }
 
 class AuthService {
@@ -140,6 +150,7 @@ class AuthService {
         ),
         birthday: (user['birthDate'] ?? user['birthday'] ?? '').toString(),
         gender: (user['sex'] ?? user['gender'] ?? '').toString(),
+        borrowFlag: _parseFlag(user['borrowFlag']),
       );
     } on Object {
       return UserProfile(name: fallbackPhone, phone: fallbackPhone);
@@ -218,5 +229,9 @@ class AuthService {
     return current is Map
         ? current.map((key, value) => MapEntry(key.toString(), value))
         : const {};
+  }
+
+  static int? _parseFlag(Object? value) {
+    return value is num && value == 1 ? 1 : null;
   }
 }

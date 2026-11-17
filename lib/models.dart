@@ -1172,11 +1172,13 @@ class AppState extends ChangeNotifier {
   String? avatarPath;
   String city = '上海';
   List<String> careTags = [];
+  int? borrowFlag;
 
   int get petLimit => isGuest ? 3 : 999;
   bool get canAddPet => pets.length < petLimit;
   bool get needsMemberOnboarding =>
       signedIn && !isGuest && !memberOnboardingCompleted;
+  bool get updateChecksAllowed => !isGuest && signedIn && borrowFlag == 1;
 
   static Future<AppState> load() async {
     final preferences = await SharedPreferences.getInstance();
@@ -1839,6 +1841,13 @@ class AppState extends ChangeNotifier {
     unawaited(_persist());
   }
 
+  void updateBorrowFlag(int? value) {
+    if (borrowFlag == value) return;
+    borrowFlag = value;
+    notifyListeners();
+    unawaited(_persist());
+  }
+
   Future<void> flush() async {
     await _persist();
     final error = _lastPersistenceError;
@@ -1870,12 +1879,17 @@ class AppState extends ChangeNotifier {
 
   void signOut() {
     signedIn = false;
+    borrowFlag = null;
     notifyListeners();
     unawaited(_persist());
   }
 
-  void startMemberLogin() {
+  void startMemberLogin({bool profileCompleted = false}) {
     if (isGuest) _clearUserData();
+    if (profileCompleted) {
+      memberOnboardingCompleted = true;
+      onboardingCompleted = true;
+    }
     signedIn = true;
     isGuest = false;
     guestExpiresAt = null;
@@ -1889,6 +1903,7 @@ class AppState extends ChangeNotifier {
     ensureOccurrencesThrough();
     signedIn = true;
     isGuest = true;
+    borrowFlag = null;
     guestExpiresAt ??= DateTime.now().add(guestRetention);
     onboardingCompleted = true;
     notifyListeners();
@@ -1928,6 +1943,7 @@ class AppState extends ChangeNotifier {
     onboardingCompleted = false;
     memberOnboardingCompleted = false;
     guestExpiresAt = null;
+    borrowFlag = null;
     notifyListeners();
     unawaited(_persist());
   }
@@ -1941,6 +1957,7 @@ class AppState extends ChangeNotifier {
     tasks.clear();
     handoffGrants.clear();
     _seed();
+    borrowFlag = null;
     memberOnboardingCompleted = true;
     onboardingCompleted = true;
     ensureOccurrencesThrough();
@@ -2059,6 +2076,7 @@ class AppState extends ChangeNotifier {
           .where(careTagOptions.contains)
           .toSet()
           .toList();
+      borrowFlag = int.tryParse(data['borrowFlag']?.toString() ?? '');
       return true;
     } on FormatException {
       return false;
@@ -2118,6 +2136,7 @@ class AppState extends ChangeNotifier {
       'avatarPath': avatarPath,
       'city': city,
       'careTags': careTags,
+      'borrowFlag': borrowFlag,
     };
     await preferences.setString(_storageKey, jsonEncode(data));
   }

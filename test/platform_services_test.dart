@@ -33,6 +33,7 @@ void main() {
             'data': {'ok': true},
           }),
           200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }),
     );
@@ -62,6 +63,69 @@ void main() {
     expect(payload['appBrand'], '金灵优记');
     expect(payload['loginStatus'], 2);
     expect(payload['passWord'], isNot('123456'));
+  });
+
+  test('云端已有资料时不会被视为待完善资料', () {
+    expect(
+      const UserProfile(
+        name: '13800138000',
+        phone: '13800138000',
+      ).hasProfileDetails,
+      isFalse,
+    );
+    expect(
+      const UserProfile(name: '小王', phone: '13800138000').hasProfileDetails,
+      isTrue,
+    );
+  });
+
+  test('用户资料解析 borrowFlag 并仅接受数字 1', () async {
+    final auth = AuthService(
+      bypassNetworkForTests: false,
+      client: MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'code': '00000',
+            'data': {
+              'userInfo': {'nickName': 'User', 'borrowFlag': 1},
+            },
+          }),
+          200,
+        );
+      }),
+    );
+
+    final profile = await auth.getUserProfile(
+      'token',
+      fallbackPhone: '13800138000',
+    );
+    expect(profile.borrowFlag, 1);
+
+    expect(
+      const UserProfile(name: '小王', phone: '13800138000').borrowFlag,
+      isNull,
+    );
+
+    final stringFlagAuth = AuthService(
+      bypassNetworkForTests: false,
+      client: MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'code': '00000',
+            'data': {
+              'userInfo': {'nickName': 'User', 'borrowFlag': '1'},
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final stringFlagProfile = await stringFlagAuth.getUserProfile(
+      'token',
+      fallbackPhone: '13800138000',
+    );
+    expect(stringFlagProfile.borrowFlag, isNull);
   });
 
   test('协议服务将 HTML 转换为可读文本', () {

@@ -228,10 +228,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             }
           });
         }
-        if (!_updateChecked) {
+        if (!_updateChecked && widget.state.updateChecksAllowed) {
           _updateChecked = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) AppUpdateService().checkAndShow(context);
+            if (mounted) {
+              AppUpdateService().checkAndShow(
+                context,
+                borrowFlag: widget.state.borrowFlag,
+              );
+            }
           });
         }
         return Scaffold(

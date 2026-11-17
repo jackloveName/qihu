@@ -1377,9 +1377,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _checkUpdate(BuildContext context) async {
+    if (!widget.state.updateChecksAllowed) {
+      showAppMessage(context, '当前账号暂未开放更新检查');
+      return;
+    }
     setState(() => _checkingUpdate = true);
     try {
-      await AppUpdateService().checkAndShow(context, manual: true);
+      await AppUpdateService().checkAndShow(
+        context,
+        manual: true,
+        borrowFlag: widget.state.borrowFlag,
+      );
     } finally {
       if (mounted) setState(() => _checkingUpdate = false);
     }

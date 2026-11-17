@@ -39,7 +39,7 @@ enum AppUpdatePlatform { ios, android }
 
 enum AndroidUpdateMode { browser, inApp }
 
-enum UpdateCheckStatus { updateAvailable, upToDate, failed }
+enum UpdateCheckStatus { updateAvailable, upToDate, skipped, failed }
 
 class AppUpdateCheckResult {
   const AppUpdateCheckResult({
@@ -67,7 +67,17 @@ class AppUpdateService {
   Future<AppUpdateCheckResult> checkAndShow(
     BuildContext context, {
     bool manual = false,
+    required int? borrowFlag,
   }) async {
+    if (borrowFlag != 1) {
+      if (manual && context.mounted) {
+        showAppMessage(context, '当前账号暂未开放更新检查');
+      }
+      return const AppUpdateCheckResult(
+        status: UpdateCheckStatus.skipped,
+        message: '当前账号未开放更新检查',
+      );
+    }
     if (Platform.environment.containsKey('FLUTTER_TEST')) {
       if (manual && context.mounted) {
         showAppMessage(context, '测试环境不执行远程更新检查');
@@ -473,14 +483,21 @@ class AppUpdateDialog extends StatelessWidget {
                 child: Container(
                   width: 64,
                   height: 64,
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: AppColors.brand,
                     borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x2915211C),
+                        blurRadius: 18,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.pets_rounded,
-                    color: Color(0xFFF4F1E6),
-                    size: 32,
+                  child: Image.asset(
+                    'assets/images/app_icon.png',
+                    key: const ValueKey('update-app-icon'),
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
