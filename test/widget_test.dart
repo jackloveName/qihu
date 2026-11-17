@@ -7,6 +7,7 @@ import 'package:petcare_manager/models.dart';
 import 'package:petcare_manager/notification_service.dart';
 import 'package:petcare_manager/screens/auth_screens.dart';
 import 'package:petcare_manager/screens/care_management_screens.dart';
+import 'package:petcare_manager/screens/stack_screens.dart';
 import 'package:petcare_manager/services/app_update_service.dart';
 import 'package:petcare_manager/sheets.dart';
 import 'package:petcare_manager/widgets/app_widgets.dart';
@@ -1405,6 +1406,35 @@ void main() {
     final fixedTask = state.tasks.singleWhere((task) => task.title == '固定日期体检');
     expect(fixedTask.recurring, isFalse);
     expect(fixedTask.date.day, fixedDate.day);
+  });
+
+  testWidgets('动物档案中同一重复任务只显示一张卡片', (tester) async {
+    final state = AppState.inMemory(seed: false);
+    final pet = state.addPet(
+      species: PetSpecies.cat,
+      name: '测试猫',
+      environment: '客厅',
+    )!;
+    state.addTask(petId: pet.id, title: '每日称重', time: '09:00', type: '称重');
+    expect(
+      state.tasks.where((task) => task.title == '每日称重').length,
+      greaterThan(1),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: PetDetailScreen(state: state, petId: pet.id),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('养护任务'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(
+      find.textContaining('每日称重', findRichText: true),
+      findsOneWidget,
+    );
   });
 
   testWidgets('重新打开体重记录时数值保持为空', (tester) async {

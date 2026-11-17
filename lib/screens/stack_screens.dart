@@ -770,14 +770,46 @@ class _PetTasks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasks = state.tasks.where((task) => task.petId == pet.id).toList()
-      ..sort((a, b) {
-        final aPending = a.status == TaskStatus.pending;
-        final bPending = b.status == TaskStatus.pending;
-        if (aPending != bPending) return aPending ? -1 : 1;
-        final dateOrder = a.date.compareTo(b.date);
-        return dateOrder != 0 ? dateOrder : a.time.compareTo(b.time);
-      });
+    final today = PetDates.dateOnly();
+    final recurringByDefinition = <String, List<CareTask>>{};
+    final tasks = <CareTask>[];
+    for (final task in state.tasks.where((task) => task.petId == pet.id)) {
+      if (task.definitionId.isEmpty) {
+        tasks.add(task);
+      } else {
+        recurringByDefinition
+            .putIfAbsent(task.definitionId, () => [])
+            .add(task);
+      }
+    }
+    for (final occurrences in recurringByDefinition.values) {
+      final todayOccurrences =
+          occurrences.where((task) => task.date == today).toList()
+            ..sort((a, b) => a.time.compareTo(b.time));
+      if (todayOccurrences.isNotEmpty) {
+        tasks.add(todayOccurrences.first);
+        continue;
+      }
+      final upcoming =
+          occurrences.where((task) => task.date.isAfter(today)).toList()
+            ..sort((a, b) {
+              final dateOrder = a.date.compareTo(b.date);
+              return dateOrder != 0 ? dateOrder : a.time.compareTo(b.time);
+            });
+      if (upcoming.isNotEmpty) {
+        tasks.add(upcoming.first);
+        continue;
+      }
+      occurrences.sort((a, b) => b.date.compareTo(a.date));
+      tasks.add(occurrences.first);
+    }
+    tasks.sort((a, b) {
+      final aPending = a.status == TaskStatus.pending;
+      final bPending = b.status == TaskStatus.pending;
+      if (aPending != bPending) return aPending ? -1 : 1;
+      final dateOrder = a.date.compareTo(b.date);
+      return dateOrder != 0 ? dateOrder : a.time.compareTo(b.time);
+    });
     if (tasks.isEmpty) {
       return const EmptyState(
         title: '暂时没有养护任务',
