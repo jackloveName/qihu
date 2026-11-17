@@ -515,6 +515,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
         builder: (context, setModalState) => AppSheetFrame(
           title: title,
           maxHeightFactor: 0.74,
+          shrinkToContent: true,
           footer: PrimaryButton(
             label: '确认日期',
             onPressed: () => Navigator.pop(context, draft),
@@ -574,13 +575,9 @@ class _EditablePetPhoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Stack(
+      fit: StackFit.expand,
       children: [
-        AppLocalImage(
-          path: path,
-          width: 82,
-          height: 82,
-          borderRadius: BorderRadius.circular(12),
-        ),
+        AppLocalImage(path: path, borderRadius: BorderRadius.circular(12)),
         Positioned(
           right: 3,
           top: 3,
@@ -627,8 +624,6 @@ class _AddPhotoTile extends StatelessWidget {
         onTap: saving ? null : onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          width: 82,
-          height: 82,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.brandLine, width: 1.2),
@@ -1050,6 +1045,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         builder: (context, setModalState) => AppSheetFrame(
           title: '选择执行时间',
           maxHeightFactor: 0.58,
+          shrinkToContent: true,
           footer: PrimaryButton(
             label: '确认时间',
             onPressed: () => Navigator.pop(context, draft),
@@ -1087,6 +1083,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         builder: (context, setModalState) => AppSheetFrame(
           title: '选择任务日期',
           maxHeightFactor: 0.74,
+          shrinkToContent: true,
           footer: PrimaryButton(
             label: '确认日期',
             onPressed: () => Navigator.pop(context, draft),

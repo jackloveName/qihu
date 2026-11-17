@@ -7,6 +7,7 @@ import 'package:petcare_manager/models.dart';
 import 'package:petcare_manager/notification_service.dart';
 import 'package:petcare_manager/screens/auth_screens.dart';
 import 'package:petcare_manager/screens/care_management_screens.dart';
+import 'package:petcare_manager/screens/create_screens.dart';
 import 'package:petcare_manager/screens/stack_screens.dart';
 import 'package:petcare_manager/services/app_update_service.dart';
 import 'package:petcare_manager/sheets.dart';
@@ -1431,10 +1432,7 @@ void main() {
     await tester.tap(find.text('养护任务'));
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(
-      find.textContaining('每日称重', findRichText: true),
-      findsOneWidget,
-    );
+    expect(find.textContaining('每日称重', findRichText: true), findsOneWidget);
   });
 
   testWidgets('重新打开体重记录时数值保持为空', (tester) async {
@@ -1469,6 +1467,33 @@ void main() {
 
     expect(find.text('选择宠物'), findsNothing);
     expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+  });
+
+  testWidgets('执行时间弹窗按内容收缩高度', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: AddTaskScreen(
+          state: state,
+          initialPetId: state.pets.first.id,
+          lockPet: true,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('task-time-field')));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('选择执行时间'), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(AppSheetFrame)).height,
+      lessThan(900 * 0.58),
+    );
   });
 
   test('模板删除会保留至少一个并持久化内置模板隐藏状态', () async {

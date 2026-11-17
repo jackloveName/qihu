@@ -20,6 +20,7 @@ class _SpeciesTemplateLibraryScreenState
     extends State<SpeciesTemplateLibraryScreen> {
   final _searchController = TextEditingController();
   String _category = '全部';
+  String? _revealedTemplateId;
 
   @override
   void dispose() {
@@ -81,7 +82,16 @@ class _SpeciesTemplateLibraryScreenState
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _TemplateSwipeTile(
+                key: ValueKey(template.id),
                 template: template,
+                revealed: _revealedTemplateId == template.id,
+                onReveal: () =>
+                    setState(() => _revealedTemplateId = template.id),
+                onClose: () {
+                  if (_revealedTemplateId == template.id) {
+                    setState(() => _revealedTemplateId = null);
+                  }
+                },
                 onDelete: () => _confirmDeleteTemplate(template),
               ),
             ),
@@ -127,9 +137,19 @@ class _SpeciesTemplateLibraryScreenState
 }
 
 class _TemplateSwipeTile extends StatefulWidget {
-  const _TemplateSwipeTile({required this.template, required this.onDelete});
+  const _TemplateSwipeTile({
+    super.key,
+    required this.template,
+    required this.revealed,
+    required this.onReveal,
+    required this.onClose,
+    required this.onDelete,
+  });
 
   final PetSpecies template;
+  final bool revealed;
+  final VoidCallback onReveal;
+  final VoidCallback onClose;
   final VoidCallback onDelete;
 
   @override
@@ -139,6 +159,18 @@ class _TemplateSwipeTile extends StatefulWidget {
 class _TemplateSwipeTileState extends State<_TemplateSwipeTile> {
   static const _deleteWidth = 82.0;
   double _offset = 0;
+
+  @override
+  void didUpdateWidget(covariant _TemplateSwipeTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.revealed && !widget.revealed) {
+      _offset = 0;
+    }
+  }
+
+  void _handleDragStart(DragStartDetails details) {
+    widget.onReveal();
+  }
 
   void _handleDrag(DragUpdateDetails details) {
     setState(() {
@@ -152,124 +184,142 @@ class _TemplateSwipeTileState extends State<_TemplateSwipeTile> {
     setState(() {
       _offset = _offset < -_deleteWidth * 0.38 ? -_deleteWidth : 0;
     });
+    if (_offset == 0) widget.onClose();
   }
 
   @override
   Widget build(BuildContext context) {
     final template = widget.template;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(17),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: SizedBox(
-                width: _deleteWidth,
-                child: Material(
-                  color: AppColors.rose,
-                  child: InkWell(
-                    onTap: widget.onDelete,
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.delete_outline_rounded, color: Colors.white),
-                        SizedBox(height: 3),
-                        Text(
-                          '删除',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = (constraints.maxWidth + _offset)
+            .clamp(0.0, constraints.maxWidth)
+            .toDouble();
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(17),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: _deleteWidth,
+                    child: Material(
+                      color: AppColors.rose,
+                      child: InkWell(
+                        onTap: widget.onDelete,
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.delete_outline_rounded,
+                              color: Colors.white,
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              '删除',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-          Transform.translate(
-            offset: Offset(_offset, 0),
-            child: GestureDetector(
-              onHorizontalDragUpdate: _handleDrag,
-              onHorizontalDragEnd: _handleDragEnd,
-              child: Material(
-                color: AppColors.paper,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(17),
-                  side: const BorderSide(color: AppColors.hair),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    if (_offset < 0) setState(() => _offset = 0);
-                  },
-                  borderRadius: BorderRadius.circular(17),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            gradient: template.gradient,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          alignment: Alignment.center,
-                          child: AnimalArt(species: template, size: 28),
-                        ),
-                        const SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: contentWidth,
+                  child: GestureDetector(
+                    onHorizontalDragStart: _handleDragStart,
+                    onHorizontalDragUpdate: _handleDrag,
+                    onHorizontalDragEnd: _handleDragEnd,
+                    child: Material(
+                      color: AppColors.paper,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(17),
+                        side: const BorderSide(color: AppColors.hair),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          if (_offset < 0) {
+                            setState(() => _offset = 0);
+                            widget.onClose();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(17),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
                             children: [
-                              Text(
-                                template.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppText.display(15.5),
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  gradient: template.gradient,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.center,
+                                child: AnimalArt(species: template, size: 28),
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${template.category} · ${template.code}',
-                                style: AppText.body(
-                                  9.5,
-                                  color: AppColors.muted,
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      template.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppText.display(15.5),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '${template.category} · ${template.code}',
+                                      style: AppText.body(
+                                        9.5,
+                                        color: AppColors.muted,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
+                              if (!template.builtIn)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.brassWash,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    '自定义',
+                                    style: AppText.body(
+                                      7.5,
+                                      color: AppColors.brass,
+                                      weight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
-                        if (!template.builtIn)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.brassWash,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '自定义',
-                              style: AppText.body(
-                                7.5,
-                                color: AppColors.brass,
-                                weight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -1748,80 +1748,102 @@ class AppSheetFrame extends StatelessWidget {
     required this.child,
     this.footer,
     this.maxHeightFactor = 0.92,
+    this.shrinkToContent = false,
   });
 
   final String title;
   final Widget child;
   final Widget? footer;
   final double maxHeightFactor;
+  final bool shrinkToContent;
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final availableHeight = MediaQuery.sizeOf(context).height - bottomInset;
+    final sheet = Material(
+      color: AppColors.paper,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: shrinkToContent ? MainAxisSize.min : MainAxisSize.max,
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 38,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.hair2,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 16, 14),
+            child: Row(
+              children: [
+                Expanded(child: Text(title, style: AppText.display(21))),
+                RoundIconButton(
+                  icon: Icons.close_rounded,
+                  size: 32,
+                  onPressed: () => Navigator.pop(context),
+                  foreground: AppColors.muted,
+                ),
+              ],
+            ),
+          ),
+          if (shrinkToContent)
+            Flexible(
+              fit: FlexFit.loose,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  22,
+                  0,
+                  22,
+                  footer == null ? 28 : 16,
+                ),
+                child: child,
+              ),
+            )
+          else
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  22,
+                  0,
+                  22,
+                  footer == null ? 28 : 16,
+                ),
+                child: child,
+              ),
+            ),
+          if (footer != null)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(
+                22,
+                12,
+                22,
+                MediaQuery.paddingOf(context).bottom + 18,
+              ),
+              decoration: const BoxDecoration(
+                color: AppColors.paper,
+                border: Border(top: BorderSide(color: AppColors.hair)),
+              ),
+              child: footer,
+            ),
+        ],
+      ),
+    );
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
-      child: SizedBox(
-        height: availableHeight * maxHeightFactor,
-        child: Material(
-          color: AppColors.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.hair2,
-                  borderRadius: BorderRadius.circular(3),
-                ),
+      child: shrinkToContent
+          ? ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: availableHeight * maxHeightFactor,
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 8, 16, 14),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(title, style: AppText.display(21))),
-                    RoundIconButton(
-                      icon: Icons.close_rounded,
-                      size: 32,
-                      onPressed: () => Navigator.pop(context),
-                      foreground: AppColors.muted,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    22,
-                    0,
-                    22,
-                    footer == null ? 28 : 16,
-                  ),
-                  child: child,
-                ),
-              ),
-              if (footer != null)
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.fromLTRB(
-                    22,
-                    12,
-                    22,
-                    MediaQuery.paddingOf(context).bottom + 18,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: AppColors.paper,
-                    border: Border(top: BorderSide(color: AppColors.hair)),
-                  ),
-                  child: footer,
-                ),
-            ],
-          ),
-        ),
-      ),
+              child: sheet,
+            )
+          : SizedBox(height: availableHeight * maxHeightFactor, child: sheet),
     );
   }
 }
