@@ -14,6 +14,13 @@ void main() {
     expect(ApiSettings.appBrand, '金灵优记');
   });
 
+  test('协议配置使用 JLYJ 对应的隐私政策和注册协议键', () {
+    expect(ApiSettings.privacyProtocolKey, 'JLYJ_PRIVACY_PROTOC');
+    expect(ApiSettings.registerProtocolKey, 'JLYJ_REGISTER_PROTOC');
+    expect(AgreementService.privacyKey, 'JLYJ_PRIVACY_PROTOC');
+    expect(AgreementService.registerKey, 'JLYJ_REGISTER_PROTOC');
+  });
+
   test('API 客户端解析成功响应并携带 Token', () async {
     late http.Request captured;
     final client = ApiClient(

@@ -69,9 +69,9 @@
     </main>
     <script>
       const params = new URLSearchParams(location.search);
-      const type = params.get("type") === "QIHU_REGISTER_PROTOC"
-        ? "QIHU_REGISTER_PROTOC"
-        : "QIHU_PRIVACY_PROTOC";
+      const type = params.get("type") === "JLYJ_REGISTER_PROTOC"
+        ? "JLYJ_REGISTER_PROTOC"
+        : "JLYJ_PRIVACY_PROTOC";
       const apiBase = (
         params.get("apiBase") || "https://dmjz.makcabxa02y.icu"
       ).replace(/\/$/, "");
@@ -81,7 +81,7 @@
       const state = document.getElementById("state");
       const content = document.getElementById("content");
       title.textContent =
-        type === "QIHU_PRIVACY_PROTOC" ? "隐私政策" : "平台注册协议";
+        type === "JLYJ_PRIVACY_PROTOC" ? "隐私政策" : "平台注册协议";
 
       function decode(value) {
         return value
