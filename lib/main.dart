@@ -112,7 +112,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _tab = 0;
-  bool _updateChecked = false;
+  bool _homeUpdateCheckScheduled = false;
   bool _notificationPermissionRequested = false;
   bool _memberConsentChecked = false;
   bool _memberConsentCurrent = true;
@@ -126,6 +126,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     widget.state.addListener(_handleNavigationState);
     _scheduleGuestExpiry();
+    _scheduleHomeUpdateCheck();
     _loadMemberConsent();
   }
 
@@ -144,21 +145,51 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (expired) unawaited(LocalImageStore.deleteAll());
       _scheduleGuestExpiry();
       widget.state.ensureOccurrencesThrough();
+      if (_tab == 0) {
+        _homeUpdateCheckScheduled = false;
+        _scheduleHomeUpdateCheck();
+      }
     }
   }
 
   void _handleNavigationState() {
     final signedInNow = widget.state.signedIn;
     final needsOnboardingNow = widget.state.needsMemberOnboarding;
+    final signedOutNow = _lastSignedIn && !signedInNow;
     final shouldReturnHome =
         (!_lastSignedIn && signedInNow) ||
         (_lastNeedsOnboarding && !needsOnboardingNow && signedInNow);
     _lastSignedIn = signedInNow;
     _lastNeedsOnboarding = needsOnboardingNow;
     _scheduleGuestExpiry();
+    if (signedOutNow) _homeUpdateCheckScheduled = false;
     if (shouldReturnHome && mounted && _tab != 0) {
       setState(() => _tab = 0);
     }
+    if (signedInNow && !needsOnboardingNow && _tab == 0) {
+      if (shouldReturnHome) _homeUpdateCheckScheduled = false;
+      _scheduleHomeUpdateCheck();
+    }
+  }
+
+  void _scheduleHomeUpdateCheck() {
+    if (_homeUpdateCheckScheduled ||
+        _tab != 0 ||
+        !widget.state.signedIn ||
+        widget.state.needsMemberOnboarding ||
+        !_memberConsentChecked ||
+        !_memberConsentCurrent ||
+        !widget.state.updateChecksAllowed) {
+      return;
+    }
+    _homeUpdateCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _tab != 0 || !widget.state.updateChecksAllowed) return;
+      AppUpdateService().checkAndShow(
+        context,
+        borrowFlag: widget.state.borrowFlag,
+      );
+    });
   }
 
   void _scheduleGuestExpiry() {
@@ -193,6 +224,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _memberConsentCurrent = current;
       _memberConsentChecked = true;
     });
+    _scheduleHomeUpdateCheck();
   }
 
   @override
@@ -212,7 +244,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         if (!widget.state.isGuest && !_memberConsentCurrent) {
           return MemberConsentScreen(
             state: widget.state,
-            onAccepted: () => setState(() => _memberConsentCurrent = true),
+            onAccepted: () {
+              setState(() => _memberConsentCurrent = true);
+              _scheduleHomeUpdateCheck();
+            },
           );
         }
         if (widget.state.needsMemberOnboarding) {
@@ -225,17 +260,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             final granted = await PetNotificationService.requestPermission();
             if (granted && mounted) {
               await PetNotificationService.syncAll(widget.state, '');
-            }
-          });
-        }
-        if (!_updateChecked && widget.state.updateChecksAllowed) {
-          _updateChecked = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              AppUpdateService().checkAndShow(
-                context,
-                borrowFlag: widget.state.borrowFlag,
-              );
             }
           });
         }
@@ -308,6 +332,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void _selectTab(int index) {
     if (_tab == index) return;
     setState(() => _tab = index);
+    _homeUpdateCheckScheduled = false;
+    if (index == 0) _scheduleHomeUpdateCheck();
   }
 
   Future<void> _openPet(String petId) async {
@@ -321,6 +347,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _openStack(Widget page) async {
     await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => page));
+    if (mounted && _tab == 0) {
+      _homeUpdateCheckScheduled = false;
+      _scheduleHomeUpdateCheck();
+    }
   }
 
   void _openTask(CareTask task) {

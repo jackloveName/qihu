@@ -1252,6 +1252,23 @@ void main() {
     expect(state.updateChecksAllowed, isTrue);
   });
 
+  test('未退出登录重启后仍保留进入首页检查更新的资格', () async {
+    SharedPreferences.setMockInitialValues({});
+    final state = await AppState.load();
+    state.signedIn = true;
+    state.isGuest = false;
+    state.memberOnboardingCompleted = true;
+    state.updateBorrowFlag(1);
+    await state.flush();
+
+    final restored = await AppState.load();
+
+    expect(restored.signedIn, isTrue);
+    expect(restored.isGuest, isFalse);
+    expect(restored.memberOnboardingCompleted, isTrue);
+    expect(restored.updateChecksAllowed, isTrue);
+  });
+
   test('提醒快照会随健康复看时间变化', () {
     final state = AppState.inMemory();
     final before = PetNotificationService.snapshot(state);
