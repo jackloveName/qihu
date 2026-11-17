@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -72,31 +73,37 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   Widget _buildPhotosSection() {
+    final itemCount = _photos.length + (_photos.length < 9 ? 1 : 0);
     return FormSection(
       label: '1 · 宠物照片（最多 9 张）',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (var index = 0; index < _photos.length; index++)
-                _EditablePetPhoto(
-                  path: _photos[index],
-                  onRemove: () => setState(() => _photos.removeAt(index)),
-                ),
-              if (_photos.length < 9)
-                _AddPhotoTile(
-                  saving: _savingPhotos,
-                  count: _photos.length,
-                  onTap: _pickPhotos,
-                ),
-            ],
-          ),
-        ],
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: itemCount,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+        ),
+        itemBuilder: (context, index) {
+          if (index < _photos.length) {
+            return _EditablePetPhoto(
+              path: _photos[index],
+              onRemove: () => setState(() => _photos.removeAt(index)),
+            );
+          }
+          return _AddPhotoTile(
+            saving: _savingPhotos,
+            count: _photos.length,
+            onTap: _pickPhotos,
+          );
+        },
       ),
     );
+  }
+
+  void _dismissInputFocus() {
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
@@ -135,6 +142,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   child: TextField(
                     controller: _templateSearchController,
                     onChanged: (_) => setState(() {}),
+                    onTapOutside: (_) => _dismissInputFocus(),
                     style: AppText.body(13),
                     decoration: const InputDecoration(
                       hintText: '搜索物种模板',
@@ -150,8 +158,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   child: ChipRow(
                     labels: _categories,
                     selected: _templateCategory,
-                    onChanged: (value) =>
-                        setState(() => _templateCategory = value),
+                    onChanged: (value) {
+                      _dismissInputFocus();
+                      setState(() => _templateCategory = value);
+                    },
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -162,84 +172,83 @@ class _AddPetScreenState extends State<AddPetScreen> {
                             title: '没有匹配的模板',
                             message: '可以换个关键词，或在设置中新增自定义模板。',
                           )
-                        : SizedBox(
-                            height: 266,
-                            child: GridView.builder(
-                              physics: const BouncingScrollPhysics(),
-                              itemCount: templates.length,
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 8,
-                                    mainAxisSpacing: 8,
-                                    childAspectRatio: 1.06,
+                        : GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: templates.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  childAspectRatio: 1.06,
+                                ),
+                            itemBuilder: (context, index) {
+                              final species = templates[index];
+                              final selected = species == _species;
+                              return GestureDetector(
+                                onTap: () {
+                                  _dismissInputFocus();
+                                  setState(() => _species = species);
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    7,
+                                    11,
+                                    7,
+                                    8,
                                   ),
-                              itemBuilder: (context, index) {
-                                final species = templates[index];
-                                final selected = species == _species;
-                                return GestureDetector(
-                                  onTap: () =>
-                                      setState(() => _species = species),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    padding: const EdgeInsets.fromLTRB(
-                                      7,
-                                      11,
-                                      7,
-                                      8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      gradient: selected
-                                          ? null
-                                          : species.gradient,
+                                  decoration: BoxDecoration(
+                                    gradient: selected
+                                        ? null
+                                        : species.gradient,
+                                    color: selected
+                                        ? AppColors.brandWash
+                                        : null,
+                                    borderRadius: BorderRadius.circular(15),
+                                    border: Border.all(
                                       color: selected
-                                          ? AppColors.brandWash
-                                          : null,
-                                      borderRadius: BorderRadius.circular(15),
-                                      border: Border.all(
+                                          ? AppColors.brand
+                                          : AppColors.hair,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      AnimalArt(
+                                        species: species,
+                                        size: 29,
                                         color: selected
                                             ? AppColors.brand
-                                            : AppColors.hair,
+                                            : species.ink,
                                       ),
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        AnimalArt(
-                                          species: species,
-                                          size: 29,
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        species.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppText.body(
+                                          9.5,
                                           color: selected
                                               ? AppColors.brand
-                                              : species.ink,
+                                              : AppColors.ink2,
+                                          weight: FontWeight.w600,
                                         ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          species.label,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: AppText.body(
-                                            9.5,
-                                            color: selected
-                                                ? AppColors.brand
-                                                : AppColors.ink2,
-                                            weight: FontWeight.w600,
-                                          ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        species.category,
+                                        style: AppText.body(
+                                          7.8,
+                                          color: AppColors.faint,
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          species.category,
-                                          style: AppText.body(
-                                            7.8,
-                                            color: AppColors.faint,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
-                                );
-                              },
-                            ),
+                                ),
+                              );
+                            },
                           ),
                   ),
                 ),
@@ -259,7 +268,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
                             icon: Icons.meeting_room_outlined,
                           ),
                       ],
-                      onChanged: (value) => setState(() => _roomId = value),
+                      onChanged: (value) {
+                        _dismissInputFocus();
+                        setState(() => _roomId = value);
+                      },
                     ),
                   ),
                 ),
@@ -269,6 +281,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     child: TextField(
                       controller: _nameController,
                       textInputAction: TextInputAction.next,
+                      onTapOutside: (_) => _dismissInputFocus(),
                       style: AppText.body(13.5),
                       decoration: const InputDecoration(hintText: '例如：糯米'),
                     ),
@@ -279,6 +292,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     label: '5 · 环境名称',
                     child: TextField(
                       controller: _environmentController,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _dismissInputFocus(),
+                      onTapOutside: (_) => _dismissInputFocus(),
                       style: AppText.body(13.5),
                       decoration: const InputDecoration(hintText: '环境名称'),
                     ),
@@ -384,7 +400,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
                         BottomSelectOption(value: '雌性', label: '雌性'),
                         BottomSelectOption(value: '未知', label: '未知'),
                       ],
-                      onChanged: (value) => setState(() => _gender = value),
+                      onChanged: (value) {
+                        _dismissInputFocus();
+                        setState(() => _gender = value);
+                      },
                     ),
                   ),
                 ),
@@ -409,6 +428,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   void _create() {
+    _dismissInputFocus();
     if (widget.initialPet == null && !widget.state.canAddPet) {
       showAppMessage(context, '游客模式最多添加 3 只宠物，登录后可继续添加');
       return;
@@ -460,6 +480,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   Future<void> _pickStartedAt() async {
+    _dismissInputFocus();
     final selected = await _showDatePickerSheet(
       initialDate: _startedAt,
       title: '选择开始饲养时间',
@@ -470,6 +491,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   Future<void> _pickBirthday() async {
+    _dismissInputFocus();
     final selected = await _showDatePickerSheet(
       initialDate: _birthday ?? PetDates.dateOnly(),
       title: '选择宠物生日',
@@ -509,6 +531,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   Future<void> _pickPhotos() async {
+    _dismissInputFocus();
     if (_photos.length >= 9) return;
     setState(() => _savingPhotos = true);
     try {
@@ -648,11 +671,13 @@ class AddTaskScreen extends StatefulWidget {
     required this.state,
     this.initialPetId,
     this.initialRecurring = true,
+    this.lockPet = false,
   });
 
   final AppState state;
   final String? initialPetId;
   final bool initialRecurring;
+  final bool lockPet;
 
   @override
   State<AddTaskScreen> createState() => _AddTaskScreenState();
@@ -661,19 +686,31 @@ class AddTaskScreen extends StatefulWidget {
 class _AddTaskScreenState extends State<AddTaskScreen> {
   late String _petId = widget.initialPetId ?? widget.state.pets.first.id;
   String _type = '环境';
-  late String _repeat = widget.initialRecurring ? '每天重复' : '仅今天';
+  late String _repeatMode = widget.initialRecurring ? '每天' : '仅今天';
+  final Set<int> _customWeekdays = {DateTime.now().weekday};
+  TimeOfDay _time = const TimeOfDay(hour: 18, minute: 0);
+  DateTime _fixedDate = PetDates.dateOnly();
   final _titleController = TextEditingController();
-  final _timeController = TextEditingController(text: '18:00');
+
+  static const _repeatModes = [
+    '仅今天',
+    '每天',
+    '工作日',
+    '周末',
+    '每周一次',
+    '指定星期',
+    '固定日期',
+  ];
 
   @override
   void dispose() {
     _titleController.dispose();
-    _timeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final selectedPet = widget.state.petByIdOrNull(_petId);
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: AppBackground(
@@ -692,22 +729,73 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 SliverToBoxAdapter(
                   child: FormSection(
                     label: '关联动物',
-                    child: BottomSelectField<String>(
-                      title: '选择动物',
-                      value: _petId,
-                      icon: Icons.pets_outlined,
-                      options: [
-                        for (final pet in widget.state.pets)
-                          BottomSelectOption(
-                            value: pet.id,
-                            label: pet.name,
-                            subtitle:
-                                '${pet.species.label} · ${pet.environment}',
+                    child: widget.lockPet && selectedPet != null
+                        ? PaperCard(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    gradient: selectedPet.species.gradient,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: AnimalArt(
+                                    species: selectedPet.species,
+                                    size: 23,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        selectedPet.name,
+                                        style: AppText.body(
+                                          13,
+                                          weight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${selectedPet.species.label} · ${selectedPet.environment}',
+                                        style: AppText.body(
+                                          9.5,
+                                          color: AppColors.muted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 16,
+                                  color: AppColors.faint,
+                                ),
+                              ],
+                            ),
+                          )
+                        : BottomSelectField<String>(
+                            title: '选择动物',
+                            value: _petId,
                             icon: Icons.pets_outlined,
+                            options: [
+                              for (final pet in widget.state.pets)
+                                BottomSelectOption(
+                                  value: pet.id,
+                                  label: pet.name,
+                                  subtitle:
+                                      '${pet.species.label} · ${pet.environment}',
+                                  icon: Icons.pets_outlined,
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _petId = value),
                           ),
-                      ],
-                      onChanged: (value) => setState(() => _petId = value),
-                    ),
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -715,6 +803,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     label: '任务名称',
                     child: TextField(
                       controller: _titleController,
+                      onTapOutside: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                       style: AppText.body(13.5),
                       decoration: const InputDecoration(hintText: '例如：检查加热垫'),
                     ),
@@ -723,11 +813,40 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 SliverToBoxAdapter(
                   child: FormSection(
                     label: '执行时间',
-                    child: TextField(
-                      controller: _timeController,
-                      keyboardType: TextInputType.datetime,
-                      style: AppText.number(13.5),
-                      decoration: const InputDecoration(hintText: '18:00'),
+                    child: InkWell(
+                      key: const ValueKey('task-time-field'),
+                      onTap: _pickTime,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        height: 48,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.paper,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.hair),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.schedule_rounded,
+                              size: 18,
+                              color: AppColors.muted,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                _formatTime(_time),
+                                style: AppText.number(13.5),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 20,
+                              color: AppColors.faint,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -738,36 +857,116 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       title: '选择任务类型',
                       value: _type,
                       icon: Icons.tune_rounded,
-                      options: const ['环境', '喂食', '清洁', '健康', '设备']
+                      options: const ['环境', '喂食', '清洁', '健康', '设备', '称重']
                           .map(
                             (value) =>
                                 BottomSelectOption(value: value, label: value),
                           )
                           .toList(),
-                      onChanged: (value) => setState(() => _type = value),
+                      onChanged: (value) {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        setState(() => _type = value);
+                      },
                     ),
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: FormSection(
                     label: '重复方式',
-                    child: BottomSelectField<String>(
-                      title: '选择重复方式',
-                      value: _repeat,
-                      icon: Icons.repeat_rounded,
-                      options: const [
-                        BottomSelectOption(
-                          value: '每天重复',
-                          label: '每天重复',
-                          subtitle: '创建一次，每天自动生成养护任务',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ChipRow(
+                          labels: _repeatModes,
+                          selected: _repeatMode,
+                          onChanged: (value) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            setState(() {
+                              _repeatMode = value;
+                              if (value == '指定星期' && _customWeekdays.isEmpty) {
+                                _customWeekdays.add(DateTime.now().weekday);
+                              }
+                            });
+                          },
                         ),
-                        BottomSelectOption(
-                          value: '仅今天',
-                          label: '仅今天',
-                          subtitle: '只生成当天的一次性任务',
+                        if (_repeatMode == '指定星期') ...[
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (var weekday = 1; weekday <= 7; weekday++)
+                                FilterChip(
+                                  label: Text(
+                                    '周${CareTaskDefinition.weekdayLabel(weekday)}',
+                                  ),
+                                  selected: _customWeekdays.contains(weekday),
+                                  selectedColor: AppColors.brandWash,
+                                  checkmarkColor: AppColors.brand,
+                                  side: BorderSide(
+                                    color: _customWeekdays.contains(weekday)
+                                        ? AppColors.brandLine
+                                        : AppColors.hair,
+                                  ),
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      if (selected) {
+                                        _customWeekdays.add(weekday);
+                                      } else if (_customWeekdays.length > 1) {
+                                        _customWeekdays.remove(weekday);
+                                      }
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                        ],
+                        if (_repeatMode == '固定日期') ...[
+                          const SizedBox(height: 10),
+                          InkWell(
+                            key: const ValueKey('task-fixed-date-field'),
+                            onTap: _pickFixedDate,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              height: 48,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.paper,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.hair),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.event_outlined,
+                                    size: 18,
+                                    color: AppColors.muted,
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Expanded(
+                                    child: Text(
+                                      PetDates.reportDate(_fixedDate),
+                                      style: AppText.number(13),
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    size: 18,
+                                    color: AppColors.faint,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Text(
+                          _repeatDescription,
+                          style: AppText.body(10.5, color: AppColors.muted),
                         ),
                       ],
-                      onChanged: (value) => setState(() => _repeat = value),
                     ),
                   ),
                 ),
@@ -784,20 +983,120 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   void _create() {
+    FocusManager.instance.primaryFocus?.unfocus();
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       showAppMessage(context, '请填写任务名称');
       return;
     }
+    if (_repeatMode == '指定星期' && _customWeekdays.isEmpty) {
+      showAppMessage(context, '请至少选择一个星期');
+      return;
+    }
+    final recurring = !const {'仅今天', '固定日期'}.contains(_repeatMode);
+    final weekdays = switch (_repeatMode) {
+      '工作日' => const {1, 2, 3, 4, 5},
+      '周末' => const {6, 7},
+      '每周一次' => {DateTime.now().weekday},
+      '指定星期' => Set<int>.from(_customWeekdays),
+      _ => const <int>{},
+    };
     widget.state.addTask(
       petId: _petId,
       title: title,
-      time: _timeController.text.trim().isEmpty
-          ? '18:00'
-          : _timeController.text.trim(),
+      time: _formatTime(_time),
       type: _type,
-      recurring: _repeat == '每天重复',
+      recurring: recurring,
+      date: _repeatMode == '固定日期' ? _fixedDate : PetDates.dateOnly(),
+      weekdays: weekdays,
     );
     Navigator.pop(context, true);
+  }
+
+  String get _repeatDescription {
+    return switch (_repeatMode) {
+      '仅今天' => '任务只出现在今天。',
+      '固定日期' => '任务只在 ${PetDates.reportDate(_fixedDate)} 出现。',
+      '每天' => '每天自动生成任务。',
+      '工作日' => '周一至周五自动生成任务。',
+      '周末' => '周六、周日自动生成任务。',
+      '每周一次' =>
+        '每周${CareTaskDefinition.weekdayLabel(DateTime.now().weekday)}自动生成任务。',
+      '指定星期' =>
+        '每周${(_customWeekdays.toList()..sort()).map(CareTaskDefinition.weekdayLabel).join('、')}自动生成任务。',
+      _ => '',
+    };
+  }
+
+  String _formatTime(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pickTime() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    var draft = _time;
+    final selected = await showModalBottomSheet<TimeOfDay>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AppSheetFrame(
+          title: '选择执行时间',
+          maxHeightFactor: 0.58,
+          footer: PrimaryButton(
+            label: '确认时间',
+            onPressed: () => Navigator.pop(context, draft),
+          ),
+          child: SizedBox(
+            height: 220,
+            child: CupertinoDatePicker(
+              mode: CupertinoDatePickerMode.time,
+              use24hFormat: true,
+              initialDateTime: DateTime(2000, 1, 1, _time.hour, _time.minute),
+              minuteInterval: 1,
+              onDateTimeChanged: (value) {
+                setModalState(() {
+                  draft = TimeOfDay(hour: value.hour, minute: value.minute);
+                });
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) setState(() => _time = selected);
+  }
+
+  Future<void> _pickFixedDate() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    var draft = _fixedDate;
+    final today = PetDates.dateOnly();
+    final selected = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AppSheetFrame(
+          title: '选择任务日期',
+          maxHeightFactor: 0.74,
+          footer: PrimaryButton(
+            label: '确认日期',
+            onPressed: () => Navigator.pop(context, draft),
+          ),
+          child: CalendarDatePicker(
+            initialDate: draft,
+            firstDate: today,
+            lastDate: today.add(const Duration(days: 365)),
+            onDateChanged: (value) => setModalState(() => draft = value),
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _fixedDate = PetDates.dateOnly(selected));
+    }
   }
 }

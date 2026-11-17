@@ -74,90 +74,47 @@ class _SpeciesTemplateLibraryScreenState
           onChanged: (value) => setState(() => _category = value),
         ),
         const SizedBox(height: 8),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: templates.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 9,
-            mainAxisSpacing: 9,
-            mainAxisExtent: 126,
-          ),
-          itemBuilder: (context, index) {
-            final template = templates[index];
-            return Material(
-              color: AppColors.paper,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(17),
-                side: const BorderSide(color: AppColors.hair),
+        if (templates.isEmpty)
+          const EmptyState(title: '没有匹配的模板', message: '可以更换分类或搜索关键词。')
+        else
+          for (final template in templates)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _TemplateSwipeTile(
+                template: template,
+                onDelete: () => _confirmDeleteTemplate(template),
               ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(17),
-                onTap: () => showAppMessage(
-                  context,
-                  template.builtIn ? '内置模板，可直接用于建档' : '自定义模板',
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              gradient: template.gradient,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            alignment: Alignment.center,
-                            child: AnimalArt(species: template, size: 27),
-                          ),
-                          const Spacer(),
-                          if (!template.builtIn)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.brassWash,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                '自定义',
-                                style: AppText.body(
-                                  7.5,
-                                  color: AppColors.brass,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Text(
-                        template.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.display(15.5),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${template.category} · ${template.code}',
-                        style: AppText.body(9, color: AppColors.muted),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
+            ),
       ],
     );
+  }
+
+  Future<void> _confirmDeleteTemplate(PetSpecies template) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除模板？'),
+        content: Text('删除“${template.label}”后将无法从模板库选择，但已创建的动物档案不会受影响。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final deleted = widget.state.deleteSpeciesTemplate(template.id);
+    if (!mounted) return;
+    setState(() {});
+    if (!deleted) {
+      showAppMessage(context, '至少需要保留一个动物模板');
+    }
   }
 
   Future<void> _openAddTemplate(BuildContext context) async {
@@ -166,6 +123,154 @@ class _SpeciesTemplateLibraryScreenState
       child: AddSpeciesTemplateSheet(state: widget.state),
     );
     if (mounted) setState(() {});
+  }
+}
+
+class _TemplateSwipeTile extends StatefulWidget {
+  const _TemplateSwipeTile({required this.template, required this.onDelete});
+
+  final PetSpecies template;
+  final VoidCallback onDelete;
+
+  @override
+  State<_TemplateSwipeTile> createState() => _TemplateSwipeTileState();
+}
+
+class _TemplateSwipeTileState extends State<_TemplateSwipeTile> {
+  static const _deleteWidth = 82.0;
+  double _offset = 0;
+
+  void _handleDrag(DragUpdateDetails details) {
+    setState(() {
+      _offset = (_offset + details.delta.dx)
+          .clamp(-_deleteWidth, 0.0)
+          .toDouble();
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    setState(() {
+      _offset = _offset < -_deleteWidth * 0.38 ? -_deleteWidth : 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final template = widget.template;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(17),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: _deleteWidth,
+                child: Material(
+                  color: AppColors.rose,
+                  child: InkWell(
+                    onTap: widget.onDelete,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.delete_outline_rounded, color: Colors.white),
+                        SizedBox(height: 3),
+                        Text(
+                          '删除',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Transform.translate(
+            offset: Offset(_offset, 0),
+            child: GestureDetector(
+              onHorizontalDragUpdate: _handleDrag,
+              onHorizontalDragEnd: _handleDragEnd,
+              child: Material(
+                color: AppColors.paper,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  side: const BorderSide(color: AppColors.hair),
+                ),
+                child: InkWell(
+                  onTap: () {
+                    if (_offset < 0) setState(() => _offset = 0);
+                  },
+                  borderRadius: BorderRadius.circular(17),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            gradient: template.gradient,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: AnimalArt(species: template, size: 28),
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                template.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.display(15.5),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${template.category} · ${template.code}',
+                                style: AppText.body(
+                                  9.5,
+                                  color: AppColors.muted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!template.builtIn)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.brassWash,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '自定义',
+                              style: AppText.body(
+                                7.5,
+                                color: AppColors.brass,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -225,7 +330,83 @@ class _AddSpeciesTemplateSheetState extends State<AddSpeciesTemplateSheet> {
       Color(0xFFD9D2CB),
       Color(0xFF5E564C),
     ),
+    _TemplatePalette(
+      '紫藤',
+      Color(0xFFEDE7F3),
+      Color(0xFFDACDE7),
+      Color(0xFF624C78),
+    ),
+    _TemplatePalette(
+      '蔷薇',
+      Color(0xFFF4E5E8),
+      Color(0xFFE8CCD2),
+      Color(0xFF7E4B57),
+    ),
+    _TemplatePalette(
+      '深海',
+      Color(0xFFE0E9EE),
+      Color(0xFFC5D9E3),
+      Color(0xFF31546A),
+    ),
+    _TemplatePalette(
+      '苔绿',
+      Color(0xFFE7EEE1),
+      Color(0xFFD0DEC5),
+      Color(0xFF4D6440),
+    ),
+    _TemplatePalette(
+      '杏桃',
+      Color(0xFFF6E8DF),
+      Color(0xFFEED2BF),
+      Color(0xFF7C5A46),
+    ),
+    _TemplatePalette(
+      '雾蓝',
+      Color(0xFFE8EDF1),
+      Color(0xFFD1DAE2),
+      Color(0xFF4E6172),
+    ),
+    _TemplatePalette(
+      '茶金',
+      Color(0xFFF2EBDC),
+      Color(0xFFE0D1B4),
+      Color(0xFF725F3C),
+    ),
+    _TemplatePalette(
+      '松墨',
+      Color(0xFFE2E9E6),
+      Color(0xFFC9D8D2),
+      Color(0xFF315147),
+    ),
   ];
+
+  static const _artStyles = [
+    ('paw', '通用爪印'),
+    ('cat', '猫'),
+    ('dog', '狗'),
+    ('rodent', '小型哺乳'),
+    ('marsupial', '有袋类'),
+    ('reptile', '爬宠'),
+    ('snake', '蛇类'),
+    ('bird', '鸟类'),
+    ('fish', '鱼类'),
+    ('amphibian', '两栖'),
+  ];
+
+  PetSpecies _previewSpecies(String artStyle) {
+    final palette = _palettes[_paletteIndex];
+    return PetSpecies(
+      id: 'preview-$artStyle',
+      label: '图形预览',
+      category: _categoryController.text.trim(),
+      background: palette.background,
+      backgroundEnd: palette.backgroundEnd,
+      ink: palette.ink,
+      artStyle: artStyle,
+      code: 'PREVIEW',
+      builtIn: false,
+    );
+  }
 
   @override
   void dispose() {
@@ -264,63 +445,68 @@ class _AddSpeciesTemplateSheetState extends State<AddSpeciesTemplateSheet> {
             child: BottomSelectField<String>(
               title: '选择图形类型',
               value: _artStyle,
-              icon: Icons.pets_outlined,
-              options: const [
-                BottomSelectOption(value: 'paw', label: '通用爪印'),
-                BottomSelectOption(value: 'cat', label: '猫'),
-                BottomSelectOption(value: 'dog', label: '狗'),
-                BottomSelectOption(value: 'rodent', label: '小型哺乳'),
-                BottomSelectOption(value: 'marsupial', label: '有袋类'),
-                BottomSelectOption(value: 'reptile', label: '爬宠'),
-                BottomSelectOption(value: 'snake', label: '蛇类'),
-                BottomSelectOption(value: 'bird', label: '鸟类'),
-                BottomSelectOption(value: 'fish', label: '鱼类'),
-                BottomSelectOption(value: 'amphibian', label: '两栖'),
+              options: [
+                for (final item in _artStyles)
+                  BottomSelectOption(
+                    value: item.$1,
+                    label: item.$2,
+                    leading: AnimalArt(
+                      species: _previewSpecies(item.$1),
+                      size: 23,
+                    ),
+                  ),
               ],
-              onChanged: (value) => setState(() => _artStyle = value),
+              onChanged: (value) {
+                FocusManager.instance.primaryFocus?.unfocus();
+                setState(() => _artStyle = value);
+              },
             ),
           ),
           FormSection(
             label: '配色',
-            child: Row(
-              children: [
-                for (var index = 0; index < _palettes.length; index++) ...[
-                  if (index > 0) const SizedBox(width: 8),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _paletteIndex = index),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        height: 48,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              _palettes[index].background,
-                              _palettes[index].backgroundEnd,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _paletteIndex == index
-                                ? AppColors.brand
-                                : AppColors.hair,
-                            width: _paletteIndex == index ? 2 : 1,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _palettes[index].name,
-                          style: AppText.body(
-                            9,
-                            color: _palettes[index].ink,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _palettes.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 7,
+                mainAxisSpacing: 7,
+                mainAxisExtent: 48,
+              ),
+              itemBuilder: (context, index) {
+                final palette = _palettes[index];
+                return GestureDetector(
+                  onTap: () {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    setState(() => _paletteIndex = index);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [palette.background, palette.backgroundEnd],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _paletteIndex == index
+                            ? AppColors.brand
+                            : AppColors.hair,
+                        width: _paletteIndex == index ? 2 : 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      palette.name,
+                      style: AppText.body(
+                        9,
+                        color: palette.ink,
+                        weight: FontWeight.w700,
                       ),
                     ),
                   ),
-                ],
-              ],
+                );
+              },
             ),
           ),
           FormSection(
@@ -478,7 +664,7 @@ class DailyNeedsScreen extends StatelessWidget {
     final selectedPet = petId == null ? null : state.petByIdOrNull(petId!);
     return _ManagementPage(
       title: petId == null ? '每日照护需求' : '${selectedPet?.name ?? '当前宠物'}的每日需求',
-      subtitle: '创建一次 · 每天自动生成',
+      subtitle: '创建一次 · 按重复规则自动生成',
       action: visiblePets.isEmpty
           ? const SizedBox.shrink()
           : RoundIconButton(
@@ -490,6 +676,7 @@ class DailyNeedsScreen extends StatelessWidget {
                     state: state,
                     initialPetId: petId,
                     initialRecurring: true,
+                    lockPet: petId != null,
                   ),
                 ),
               ),
@@ -581,7 +768,7 @@ class DailyNeedsScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    '${definition.defaultTime} · ${definition.type} · 每天',
+                                    '${definition.defaultTime} · ${definition.type} · ${definition.repeatDescription}',
                                     style: AppText.body(
                                       9.5,
                                       color: AppColors.muted,
@@ -1034,11 +1221,13 @@ class AddFoodSheet extends StatefulWidget {
     required this.state,
     this.existing,
     this.initialPetId,
+    this.lockPet = false,
   });
 
   final AppState state;
   final FoodSupply? existing;
   final String? initialPetId;
+  final bool lockPet;
 
   @override
   State<AddFoodSheet> createState() => _AddFoodSheetState();
@@ -1084,6 +1273,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedPet = widget.state.petByIdOrNull(_petId);
     return AppSheetFrame(
       title: widget.existing == null ? '添加库存记录' : '编辑库存记录',
       maxHeightFactor: 0.94,
@@ -1105,16 +1295,49 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
           ),
           FormSection(
             label: '关联宠物',
-            child: BottomSelectField<String>(
-              title: '选择宠物',
-              value: _petId,
-              icon: Icons.pets_outlined,
-              options: [
-                for (final pet in widget.state.pets)
-                  BottomSelectOption(value: pet.id, label: pet.name),
-              ],
-              onChanged: (value) => setState(() => _petId = value),
-            ),
+            child: widget.lockPet && selectedPet != null
+                ? PaperCard(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            gradient: selectedPet.species.gradient,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: AnimalArt(
+                            species: selectedPet.species,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            selectedPet.name,
+                            style: AppText.body(13, weight: FontWeight.w600),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 16,
+                          color: AppColors.faint,
+                        ),
+                      ],
+                    ),
+                  )
+                : BottomSelectField<String>(
+                    title: '选择宠物',
+                    value: _petId,
+                    icon: Icons.pets_outlined,
+                    options: [
+                      for (final pet in widget.state.pets)
+                        BottomSelectOption(value: pet.id, label: pet.name),
+                    ],
+                    onChanged: (value) => setState(() => _petId = value),
+                  ),
           ),
           FormSection(
             label: _kind == '食物' ? '食物名称' : '用品名称',

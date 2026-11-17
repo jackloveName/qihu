@@ -1038,11 +1038,7 @@ class RecordWeightSheet extends StatefulWidget {
 
 class _RecordWeightSheetState extends State<RecordWeightSheet> {
   late String _unit = widget.pet.weight.endsWith('kg') ? 'kg' : 'g';
-  late final TextEditingController _weightController = TextEditingController(
-    text:
-        RegExp(r'-?\d+(?:\.\d+)?').firstMatch(widget.pet.weight)?.group(0) ??
-        '',
-  );
+  final _weightController = TextEditingController();
 
   @override
   void dispose() {

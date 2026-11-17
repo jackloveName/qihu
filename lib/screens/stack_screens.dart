@@ -129,7 +129,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               icon: Icons.add_rounded,
               onPressed: () => showAppSheet(
                 context: context,
-                child: AddFoodSheet(state: widget.state, initialPetId: _pet.id),
+                child: AddFoodSheet(
+                  state: widget.state,
+                  initialPetId: _pet.id,
+                  lockPet: true,
+                ),
               ),
             ),
           },
@@ -187,8 +191,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Future<void> _addTask() async {
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) =>
-            AddTaskScreen(state: widget.state, initialPetId: _pet.id),
+        builder: (_) => AddTaskScreen(
+          state: widget.state,
+          initialPetId: _pet.id,
+          lockPet: true,
+        ),
       ),
     );
     if (created == true && mounted) {
@@ -823,7 +830,11 @@ class _FoodPlan extends StatelessWidget {
                 pet: pet,
                 onTap: () => showAppSheet(
                   context: context,
-                  child: AddFoodSheet(state: state, existing: food),
+                  child: AddFoodSheet(
+                    state: state,
+                    existing: food,
+                    lockPet: true,
+                  ),
                 ),
                 onRestock: () => showAppSheet(
                   context: context,
@@ -838,7 +849,11 @@ class _FoodPlan extends StatelessWidget {
           ghost: true,
           onPressed: () => showAppSheet(
             context: context,
-            child: AddFoodSheet(state: state, initialPetId: pet.id),
+            child: AddFoodSheet(
+              state: state,
+              initialPetId: pet.id,
+              lockPet: true,
+            ),
           ),
         ),
       ],

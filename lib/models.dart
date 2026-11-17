@@ -899,7 +899,10 @@ class CareTaskDefinition {
     required this.defaultTime,
     required this.priority,
     this.enabled = true,
-  });
+    Set<int> weekdays = const {},
+  }) : weekdays = Set.unmodifiable(
+         weekdays.where((weekday) => weekday >= 1 && weekday <= 7),
+       );
 
   final String id;
   final String petId;
@@ -909,8 +912,38 @@ class CareTaskDefinition {
   final String defaultTime;
   final TaskPriority priority;
   final bool enabled;
+  final Set<int> weekdays;
 
-  CareTaskDefinition copyWith({bool? enabled}) {
+  String get repeatDescription {
+    if (weekdays.isEmpty) return '每天';
+    if (weekdays.length == 5 && weekdays.containsAll(const {1, 2, 3, 4, 5})) {
+      return '工作日';
+    }
+    if (weekdays.length == 2 && weekdays.containsAll(const {6, 7})) {
+      return '周末';
+    }
+    final labels = weekdays.toList()..sort();
+    return '每周${labels.map(weekdayLabel).join('、')}';
+  }
+
+  bool appliesOn(DateTime date) {
+    return weekdays.isEmpty || weekdays.contains(date.weekday);
+  }
+
+  static String weekdayLabel(int weekday) {
+    return switch (weekday) {
+      DateTime.monday => '一',
+      DateTime.tuesday => '二',
+      DateTime.wednesday => '三',
+      DateTime.thursday => '四',
+      DateTime.friday => '五',
+      DateTime.saturday => '六',
+      DateTime.sunday => '日',
+      _ => '',
+    };
+  }
+
+  CareTaskDefinition copyWith({bool? enabled, Set<int>? weekdays}) {
     return CareTaskDefinition(
       id: id,
       petId: petId,
@@ -920,6 +953,7 @@ class CareTaskDefinition {
       defaultTime: defaultTime,
       priority: priority,
       enabled: enabled ?? this.enabled,
+      weekdays: weekdays ?? this.weekdays,
     );
   }
 
@@ -932,6 +966,7 @@ class CareTaskDefinition {
     'defaultTime': defaultTime,
     'priority': priority.name,
     'enabled': enabled,
+    'weekdays': (weekdays.toList()..sort()),
   };
 
   factory CareTaskDefinition.fromJson(Map<String, dynamic> json) {
@@ -947,6 +982,10 @@ class CareTaskDefinition {
         orElse: () => TaskPriority.suggested,
       ),
       enabled: json['enabled'] as bool? ?? true,
+      weekdays: (json['weekdays'] as List<dynamic>? ?? const [])
+          .map((value) => value as int)
+          .where((weekday) => weekday >= 1 && weekday <= 7)
+          .toSet(),
     );
   }
 }
@@ -1155,6 +1194,7 @@ class AppState extends ChangeNotifier {
   Object? _lastPersistenceError;
   final List<PetProfile> pets = [];
   final List<PetSpecies> speciesTemplates = [];
+  final Set<String> hiddenSpeciesTemplateIds = {};
   final List<PetRoom> rooms = [];
   final List<FoodSupply> foodSupplies = [];
   final List<CareTaskDefinition> taskDefinitions = [];
@@ -1480,6 +1520,7 @@ class AppState extends ChangeNotifier {
     for (var dayOffset = 0; dayOffset <= daysAhead; dayOffset++) {
       final date = start.add(Duration(days: dayOffset));
       for (final definition in taskDefinitions.where((item) => item.enabled)) {
+        if (!definition.appliesOn(date)) continue;
         final key = '${definition.id}:${_dateKey(date)}';
         if (!existing.add(key)) continue;
         tasks.add(
@@ -1673,43 +1714,62 @@ class AppState extends ChangeNotifier {
     return template;
   }
 
+  bool deleteSpeciesTemplate(String id) {
+    if (speciesTemplates.length <= 1) return false;
+    final before = speciesTemplates.length;
+    speciesTemplates.removeWhere((template) => template.id == id);
+    if (speciesTemplates.length == before) return false;
+    if (PetSpecies.builtIns.any((template) => template.id == id)) {
+      hiddenSpeciesTemplateIds.add(id);
+    }
+    notifyListeners();
+    unawaited(_persist());
+    return true;
+  }
+
   void addTask({
     required String petId,
     required String title,
     required String time,
     required String type,
     bool recurring = true,
+    DateTime? date,
+    Set<int> weekdays = const {},
   }) {
     final now = DateTime.now();
     final stamp = now.microsecondsSinceEpoch;
-    final definition = recurring
-        ? CareTaskDefinition(
-            id: 'definition-$stamp',
-            petId: petId,
-            title: title,
-            subtitle: '每日照护需求',
-            type: type,
-            defaultTime: time,
-            priority: TaskPriority.suggested,
-          )
-        : null;
-    if (definition != null) taskDefinitions.add(definition);
-    tasks.insert(
-      0,
-      CareTask(
-        id: '${definition?.id ?? 'oneoff'}-${_dateKey(now)}-${stamp + 1}',
-        definitionId: definition?.id ?? '',
-        petId: petId,
-        title: title,
-        subtitle: definition?.subtitle ?? '一次性养护任务',
-        time: time,
-        type: type,
-        date: _dateOnly(now),
-        priority: TaskPriority.suggested,
-        recurring: recurring,
-      ),
-    );
-    if (recurring) ensureOccurrencesThrough();
+    final taskDate = _dateOnly(date ?? now);
+    if (recurring) {
+      taskDefinitions.add(
+        CareTaskDefinition(
+          id: 'definition-$stamp',
+          petId: petId,
+          title: title,
+          subtitle: '按计划重复的照护任务',
+          type: type,
+          defaultTime: time,
+          priority: TaskPriority.suggested,
+          weekdays: weekdays,
+        ),
+      );
+      ensureOccurrencesThrough();
+    } else {
+      tasks.insert(
+        0,
+        CareTask(
+          id: 'oneoff-${_dateKey(taskDate)}-$stamp',
+          definitionId: '',
+          petId: petId,
+          title: title,
+          subtitle: '一次性养护任务',
+          time: time,
+          type: type,
+          date: taskDate,
+          priority: TaskPriority.suggested,
+          recurring: false,
+        ),
+      );
+    }
     notifyListeners();
     unawaited(_persist());
   }
@@ -1935,6 +1995,7 @@ class AppState extends ChangeNotifier {
   void deleteLocalAccount() {
     _clearUserData();
     speciesTemplates.clear();
+    hiddenSpeciesTemplateIds.clear();
     rooms.clear();
     notifications = true;
     hapticFeedback = true;
@@ -1951,6 +2012,7 @@ class AppState extends ChangeNotifier {
   void resetDemo() {
     pets.clear();
     speciesTemplates.clear();
+    hiddenSpeciesTemplateIds.clear();
     rooms.clear();
     foodSupplies.clear();
     taskDefinitions.clear();
@@ -1986,7 +2048,11 @@ class AppState extends ChangeNotifier {
 
   void _seedReferenceData() {
     if (speciesTemplates.isEmpty) {
-      speciesTemplates.addAll(PetSpecies.builtIns);
+      speciesTemplates.addAll(
+        PetSpecies.builtIns.where(
+          (template) => !hiddenSpeciesTemplateIds.contains(template.id),
+        ),
+      );
     }
     if (rooms.isEmpty) rooms.addAll(seedRooms());
   }
@@ -1996,13 +2062,24 @@ class AppState extends ChangeNotifier {
     try {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       if ((data['schemaVersion'] as int? ?? 0) < 1) return false;
+      hiddenSpeciesTemplateIds
+        ..clear()
+        ..addAll(
+          (data['hiddenSpeciesTemplateIds'] as List<dynamic>? ?? const []).map(
+            (value) => value.toString(),
+          ),
+        );
       final restoredTemplates =
           (data['speciesTemplates'] as List<dynamic>? ?? [])
               .map((item) => PetSpecies.fromJson(item as Map<String, dynamic>))
               .toList();
       speciesTemplates
         ..clear()
-        ..addAll(PetSpecies.builtIns)
+        ..addAll(
+          PetSpecies.builtIns.where(
+            (template) => !hiddenSpeciesTemplateIds.contains(template.id),
+          ),
+        )
         ..addAll(
           restoredTemplates.where(
             (template) => !PetSpecies.builtIns.any(
@@ -2118,6 +2195,7 @@ class AppState extends ChangeNotifier {
           .where((template) => !template.builtIn)
           .map((template) => template.toJson())
           .toList(),
+      'hiddenSpeciesTemplateIds': hiddenSpeciesTemplateIds.toList()..sort(),
       'rooms': rooms.map((room) => room.toJson()).toList(),
       'foodSupplies': foodSupplies.map((food) => food.toJson()).toList(),
       'taskDefinitions': taskDefinitions

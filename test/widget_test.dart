@@ -381,18 +381,29 @@ void main() {
       find.widgetWithText(FormSection, '1 · 宠物照片（最多 9 张）'),
       findsOneWidget,
     );
-    expect(find.widgetWithText(FormSection, '4 · 动物昵称'), findsOneWidget);
     expect(find.byKey(const ValueKey('pet-add-photo')), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('1 · 宠物照片（最多 9 张）')).dy,
+      lessThan(tester.getTopLeft(find.text('2 · 选择物种模板')).dy),
+    );
+    final addPetScroll = find
+        .descendant(
+          of: find.byKey(const ValueKey('add-pet-scroll')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      find.text('4 · 动物昵称'),
+      500,
+      scrollable: addPetScroll,
+    );
+    expect(find.widgetWithText(FormSection, '4 · 动物昵称'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>
             widget is TextField && widget.decoration?.hintText == '环境名称',
       ),
       findsOneWidget,
-    );
-    expect(
-      tester.getTopLeft(find.text('1 · 宠物照片（最多 9 张）')).dy,
-      lessThan(tester.getTopLeft(find.text('2 · 选择物种模板')).dy),
     );
   });
 
@@ -418,7 +429,7 @@ void main() {
     expect(find.byType(AppSheetFrame), findsNothing);
   });
 
-  testWidgets('新增任务页面使用底部动物选择器', (tester) async {
+  testWidgets('从动物档案新增任务时锁定当前动物', (tester) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -445,15 +456,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('新增养护任务'), findsWidgets);
-    await tester.tap(find.byType(BottomSelectField<String>).first);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('选择动物'), findsOneWidget);
-
-    await tester.tap(find.text('露露').last);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('露露'), findsWidgets);
+    expect(find.text('选择动物'), findsNothing);
+    expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+    expect(find.text('糯米'), findsWidgets);
   });
 
   testWidgets('动物页右下角新增按钮可以进入建档页面', (tester) async {
@@ -1360,5 +1365,93 @@ void main() {
     final state = AppState.inMemory();
     expect(state.petByIdOrNull('missing-pet'), isNull);
     expect(() => state.petById('missing-pet'), throwsStateError);
+  });
+
+  test('任务支持指定星期和固定日期', () {
+    final state = AppState.inMemory(seed: false);
+    final pet = state.addPet(
+      species: PetSpecies.cat,
+      name: '测试猫',
+      environment: '客厅',
+    )!;
+    state.addTask(
+      petId: pet.id,
+      title: '周一和周三称重',
+      time: '09:15',
+      type: '称重',
+      weekdays: const {DateTime.monday, DateTime.wednesday},
+    );
+
+    final recurring = state.tasks.where((task) => task.title == '周一和周三称重');
+    expect(recurring, isNotEmpty);
+    expect(
+      recurring.every(
+        (task) =>
+            task.date.weekday == DateTime.monday ||
+            task.date.weekday == DateTime.wednesday,
+      ),
+      isTrue,
+    );
+
+    final fixedDate = DateTime.now().add(const Duration(days: 3));
+    state.addTask(
+      petId: pet.id,
+      title: '固定日期体检',
+      time: '14:30',
+      type: '健康',
+      recurring: false,
+      date: fixedDate,
+    );
+    final fixedTask = state.tasks.singleWhere((task) => task.title == '固定日期体检');
+    expect(fixedTask.recurring, isFalse);
+    expect(fixedTask.date.day, fixedDate.day);
+  });
+
+  testWidgets('重新打开体重记录时数值保持为空', (tester) async {
+    final state = AppState.inMemory();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RecordWeightSheet(state: state, pet: state.pets.first),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller?.text, isEmpty);
+  });
+
+  testWidgets('从动物档案添加食物计划时锁定当前宠物', (tester) async {
+    final state = AppState.inMemory();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AddFoodSheet(
+            state: state,
+            initialPetId: state.pets.first.id,
+            lockPet: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('选择宠物'), findsNothing);
+    expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+  });
+
+  test('模板删除会保留至少一个并持久化内置模板隐藏状态', () async {
+    SharedPreferences.setMockInitialValues({});
+    final state = await AppState.load();
+    final builtInId = PetSpecies.cat.id;
+    expect(state.deleteSpeciesTemplate(builtInId), isTrue);
+    await state.flush();
+
+    final restored = await AppState.load();
+    expect(
+      restored.speciesTemplates.any((template) => template.id == builtInId),
+      isFalse,
+    );
   });
 }

@@ -1262,12 +1262,14 @@ class BottomSelectOption<T> {
     required this.label,
     this.subtitle,
     this.icon,
+    this.leading,
   });
 
   final T value;
   final String label;
   final String? subtitle;
   final IconData? icon;
+  final Widget? leading;
 }
 
 class BottomSelectField<T> extends StatelessWidget {
@@ -1321,6 +1323,10 @@ class BottomSelectField<T> extends StatelessWidget {
             children: [
               if (icon != null) ...[
                 Icon(icon, color: AppColors.muted, size: 18),
+                const SizedBox(width: 9),
+              ],
+              if (selected?.leading != null) ...[
+                selected!.leading!,
                 const SizedBox(width: 9),
               ],
               Expanded(
@@ -1416,7 +1422,10 @@ class _BottomPickerSheet<T> extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          if (option.icon != null) ...[
+                          if (option.leading != null) ...[
+                            option.leading!,
+                            const SizedBox(width: 11),
+                          ] else if (option.icon != null) ...[
                             Icon(
                               option.icon,
                               size: 20,
