@@ -13,7 +13,9 @@ import 'screens/main_screens.dart';
 import 'screens/stack_screens.dart';
 import 'services/app_update_service.dart';
 import 'services/local_image_store.dart';
+import 'services/member_profile_store.dart';
 import 'storage/privacy_consent_store.dart';
+import 'storage/session_token_store.dart';
 import 'sheets.dart';
 import 'widgets/app_widgets.dart';
 
@@ -128,6 +130,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _scheduleGuestExpiry();
     _scheduleHomeUpdateCheck();
     _loadMemberConsent();
+    _ensureRemoteProfileMarker();
   }
 
   @override
@@ -225,6 +228,31 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _memberConsentChecked = true;
     });
     _scheduleHomeUpdateCheck();
+  }
+
+  Future<void> _ensureRemoteProfileMarker() async {
+    if (!widget.state.signedIn ||
+        widget.state.isGuest ||
+        !widget.state.memberOnboardingCompleted) {
+      return;
+    }
+    final token = await SessionTokenStore.read();
+    if (token == null || token.isEmpty) return;
+    final store = MemberProfileStore();
+    try {
+      final saved = await store.read(token);
+      if (saved?.completed == true) return;
+      await store.save(
+        token: token,
+        nickname: widget.state.nickname,
+        city: widget.state.city,
+        careTags: widget.state.careTags,
+      );
+    } on Object {
+      // The local profile remains usable when the account sync is unavailable.
+    } finally {
+      store.close();
+    }
   }
 
   @override

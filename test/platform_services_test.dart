@@ -8,6 +8,7 @@ import 'package:petcare_manager/services/api/api_client.dart';
 import 'package:petcare_manager/services/api/api_settings.dart';
 import 'package:petcare_manager/services/app_update_service.dart';
 import 'package:petcare_manager/services/auth_service.dart';
+import 'package:petcare_manager/services/member_profile_store.dart';
 
 void main() {
   test('后端应用标识默认使用金灵优记', () {
@@ -126,6 +127,53 @@ void main() {
       fallbackPhone: '13800138000',
     );
     expect(stringFlagProfile.borrowFlag, isNull);
+  });
+
+  test('账号资料完成标记可以跨设备读取和保存', () async {
+    Map<String, dynamic>? savedBody;
+    final store = MemberProfileStore(
+      client: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(
+            jsonEncode({
+              'code': '00000',
+              'data': {
+                'paramValue': jsonEncode({
+                  'completed': true,
+                  'nickname': '小王',
+                  'city': '浙江 · 杭州',
+                  'careTags': ['猫猫教'],
+                }),
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        savedBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({'code': '00000'}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final profile = await store.read('token');
+    expect(profile?.completed, isTrue);
+    expect(profile?.nickname, '小王');
+    expect(profile?.city, '浙江 · 杭州');
+    expect(profile?.careTags, ['猫猫教']);
+
+    await store.save(
+      token: 'token',
+      nickname: '小王',
+      city: '浙江 · 杭州',
+      careTags: const ['猫猫教'],
+    );
+    expect(savedBody?['paramKey'], MemberProfileStore.storageKey);
+    final value = jsonDecode(savedBody!['paramValue'] as String);
+    expect(value['completed'], isTrue);
   });
 
   test('协议服务将 HTML 转换为可读文本', () {

@@ -14,6 +14,7 @@ import '../services/agreement_page_launcher.dart';
 import '../services/agreement_service.dart';
 import '../services/auth_service.dart';
 import '../services/local_image_store.dart';
+import '../services/member_profile_store.dart';
 import '../storage/privacy_consent_store.dart';
 import '../storage/session_token_store.dart';
 import 'agreement_screen.dart';
@@ -739,19 +740,35 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
         session.token,
         fallbackPhone: session.phone,
       );
+      final profileStore = MemberProfileStore();
+      MemberProfileSnapshot? savedProfile;
+      try {
+        savedProfile = await profileStore.read(session.token);
+      } finally {
+        profileStore.close();
+      }
       await SessionTokenStore.write(session.token);
       widget.state.updateProfile(
-        nickname: profile.name.trim().isEmpty
+        nickname: savedProfile?.nickname.trim().isNotEmpty == true
+            ? savedProfile!.nickname
+            : profile.name.trim().isEmpty
             ? session.phone
             : profile.name.trim(),
         avatarPath: profile.avatarPath.isEmpty
             ? widget.state.avatarPath
             : profile.avatarPath,
-        city: widget.state.city,
-        careTags: widget.state.careTags,
+        city: savedProfile?.city.trim().isNotEmpty == true
+            ? savedProfile!.city
+            : widget.state.city,
+        careTags: savedProfile?.careTags.isNotEmpty == true
+            ? savedProfile!.careTags
+            : widget.state.careTags,
       );
       widget.state.updateBorrowFlag(profile.borrowFlag);
-      await _completeLogin(profileCompleted: profile.hasProfileDetails);
+      await _completeLogin(
+        profileCompleted:
+            savedProfile?.completed == true || profile.hasProfileDetails,
+      );
     } on Object catch (error) {
       if (context.mounted) {
         showAppMessage(
@@ -1386,7 +1403,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _finish() {
+  Future<void> _finish() async {
     final nickname = _nicknameController.text.trim();
     if (nickname.isEmpty) {
       showAppMessage(context, '请填写昵称');
@@ -1396,6 +1413,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       showAppMessage(context, '请至少选择一个养宠标签');
       return;
     }
+    await _syncMemberProfile(
+      nickname: nickname,
+      city: _city,
+      careTags: _tags.toList(),
+    );
+    if (!mounted) return;
     if (widget.editMode) {
       widget.state.updateProfile(
         nickname: nickname,
@@ -1411,6 +1434,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         city: _city,
         careTags: _tags.toList(),
       );
+    }
+  }
+
+  Future<void> _syncMemberProfile({
+    required String nickname,
+    required String city,
+    required List<String> careTags,
+  }) async {
+    final token = await SessionTokenStore.read();
+    if (token == null || token.isEmpty) return;
+    final store = MemberProfileStore();
+    try {
+      await store.save(
+        token: token,
+        nickname: nickname,
+        city: city,
+        careTags: careTags,
+      );
+    } on Object {
+      if (mounted) showAppMessage(context, '资料已保存在本机，账号同步失败');
+    } finally {
+      store.close();
     }
   }
 }
