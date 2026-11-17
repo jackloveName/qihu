@@ -1456,9 +1456,22 @@ void main() {
     await tester.tap(find.text('生长趋势'));
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('14'), findsNothing);
-    for (final weight in [15, 16, 17, 18, 19, 20]) {
-      expect(find.text('$weight'), findsOneWidget);
+    final chart = tester.widget<CustomPaint>(
+      find.byKey(const ValueKey('weight-line-chart')),
+    );
+    final chartPainter = chart.painter as dynamic;
+    final List<WeightRecord> chartRecords = chartPainter.records;
+    expect(chartRecords.map((record) => record.value), [
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+    ]);
+
+    for (var weight = 11; weight <= 20; weight++) {
+      expect(find.text('$weight g'), findsWidgets);
     }
   });
 

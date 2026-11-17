@@ -104,6 +104,11 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final groupedResults = <String, List<ChinaCity>>{};
+    for (final city in _results) {
+      groupedResults.putIfAbsent(city.province, () => []).add(city);
+    }
+    final groups = groupedResults.entries.toList();
     return Container(
       height: MediaQuery.sizeOf(context).height * 0.86,
       decoration: const BoxDecoration(
@@ -170,77 +175,85 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
                       16,
                       MediaQuery.paddingOf(context).bottom + 18,
                     ),
-                    itemCount: _results.length,
+                    itemCount: groups.length,
                     itemBuilder: (context, index) {
-                      final city = _results[index];
-                      final showProvince =
-                          index == 0 ||
-                          _results[index - 1].province != city.province;
-                      final active = city.value == _selected?.value;
+                      final group = groups[index];
                       return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (showProvince)
-                            Padding(
-                              padding: EdgeInsets.only(
-                                top: index == 0 ? 2 : 15,
-                                bottom: 7,
-                                left: 3,
-                              ),
-                              child: Text(
-                                city.province,
-                                style: AppText.body(
-                                  10,
-                                  color: AppColors.brass,
-                                  weight: FontWeight.w700,
-                                  spacing: 0.8,
-                                ),
-                              ),
+                          Padding(
+                            padding: EdgeInsets.only(
+                              top: index == 0 ? 2 : 15,
+                              bottom: 8,
+                              left: 3,
                             ),
-                          Material(
-                            color: active
-                                ? AppColors.brandWash
-                                : AppColors.paper2,
-                            borderRadius: BorderRadius.circular(14),
-                            child: InkWell(
-                              key: ValueKey(
-                                'city-option-${city.province}-${city.name}',
-                              ),
-                              onTap: () => Navigator.pop(context, city),
-                              borderRadius: BorderRadius.circular(14),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        city.name,
-                                        style: AppText.body(
-                                          13,
-                                          color: active
-                                              ? AppColors.brand
-                                              : AppColors.ink,
-                                          weight: active
-                                              ? FontWeight.w700
-                                              : FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                    if (active)
-                                      const Icon(
-                                        Icons.check_rounded,
-                                        size: 18,
-                                        color: AppColors.brand,
-                                      ),
-                                  ],
-                                ),
+                            child: Text(
+                              group.key,
+                              style: AppText.body(
+                                10,
+                                color: AppColors.brass,
+                                weight: FontWeight.w700,
+                                spacing: 0.8,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 7),
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 7,
+                            children: [
+                              for (final city in group.value)
+                                Builder(
+                                  builder: (context) {
+                                    final active =
+                                        city.value == _selected?.value;
+                                    return Material(
+                                      color: active
+                                          ? AppColors.brandWash
+                                          : AppColors.paper2,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        side: BorderSide(
+                                          color: active
+                                              ? AppColors.brandLine
+                                              : AppColors.hair,
+                                        ),
+                                      ),
+                                      child: InkWell(
+                                        key: ValueKey(
+                                          'city-option-${city.province}-${city.name}',
+                                        ),
+                                        onTap: () =>
+                                            Navigator.pop(context, city),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          child: Text(
+                                            city.name,
+                                            style: AppText.body(
+                                              11.5,
+                                              color: active
+                                                  ? AppColors.brand
+                                                  : AppColors.ink2,
+                                              weight: active
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
                         ],
                       );
                     },

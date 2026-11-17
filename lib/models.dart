@@ -626,6 +626,60 @@ class JournalEntry {
   }
 }
 
+class WeightRecord {
+  const WeightRecord({required this.value, required this.recordedAt});
+
+  final double value;
+  final DateTime recordedAt;
+
+  Map<String, dynamic> toJson() => {
+    'value': value,
+    'recordedAt': recordedAt.toIso8601String(),
+  };
+
+  factory WeightRecord.fromJson(Map<String, dynamic> json) {
+    return WeightRecord(
+      value: (json['value'] as num? ?? 0).toDouble(),
+      recordedAt:
+          DateTime.tryParse(json['recordedAt'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+List<WeightRecord> _deriveWeightHistory(
+  List<double> weights,
+  List<JournalEntry> logs,
+) {
+  final fromLogs = <WeightRecord>[];
+  for (final entry in logs.reversed) {
+    if (entry.title != '体重记录') continue;
+    final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(entry.description);
+    final value = double.tryParse(match?.group(1) ?? '');
+    if (value == null || value <= 0) continue;
+    fromLogs.add(
+      WeightRecord(
+        value: value,
+        recordedAt: entry.occurredAt ?? DateTime.now(),
+      ),
+    );
+  }
+  final positiveWeights = weights.where((value) => value > 0).toList();
+  if (fromLogs.isNotEmpty && fromLogs.length >= positiveWeights.length) {
+    return fromLogs;
+  }
+  final now = DateTime.now();
+  return [
+    for (var index = 0; index < positiveWeights.length; index++)
+      WeightRecord(
+        value: positiveWeights[index],
+        recordedAt: now.subtract(
+          Duration(days: (positiveWeights.length - index - 1) * 7),
+        ),
+      ),
+  ];
+}
+
 class PetProfile {
   PetProfile({
     required this.id,
@@ -639,13 +693,15 @@ class PetProfile {
     required this.weight,
     required this.logs,
     required this.weights,
+    List<WeightRecord>? weightHistory,
     this.roomId = '',
     this.warning = false,
     this.startedAt,
     this.birthday,
     this.gender = '',
     List<String>? photos,
-  }) : photos = photos ?? [];
+  }) : photos = photos ?? [],
+       weightHistory = weightHistory ?? _deriveWeightHistory(weights, logs);
 
   final String id;
   final String name;
@@ -658,6 +714,7 @@ class PetProfile {
   final String weight;
   final List<JournalEntry> logs;
   final List<double> weights;
+  final List<WeightRecord> weightHistory;
   final String roomId;
   final bool warning;
   final DateTime? startedAt;
@@ -678,6 +735,7 @@ class PetProfile {
     String? gender,
     DateTime? startedAt,
     List<double>? weights,
+    List<WeightRecord>? weightHistory,
   }) {
     return PetProfile(
       id: id,
@@ -691,6 +749,7 @@ class PetProfile {
       weight: weight ?? this.weight,
       logs: logs,
       weights: weights ?? this.weights,
+      weightHistory: weightHistory ?? this.weightHistory,
       roomId: roomId ?? this.roomId,
       warning: warning,
       startedAt: startedAt ?? this.startedAt,
@@ -719,6 +778,7 @@ class PetProfile {
     'photos': photos,
     'logs': logs.map((entry) => entry.toJson()).toList(),
     'weights': weights,
+    'weightHistory': weightHistory.map((entry) => entry.toJson()).toList(),
   };
 
   factory PetProfile.fromJson(
@@ -726,6 +786,13 @@ class PetProfile {
     Iterable<PetSpecies>? templates,
   }) {
     final embeddedTemplate = json['speciesTemplate'];
+    final logs = (json['logs'] as List<dynamic>? ?? [])
+        .map((item) => JournalEntry.fromJson(item as Map<String, dynamic>))
+        .toList();
+    final weights = (json['weights'] as List<dynamic>? ?? [])
+        .map((value) => (value as num).toDouble())
+        .toList();
+    final rawWeightHistory = json['weightHistory'] as List<dynamic>?;
     return PetProfile(
       id: json['id'] as String,
       name: json['name'] as String? ?? '未命名',
@@ -749,11 +816,10 @@ class PetProfile {
       photos: (json['photos'] as List<dynamic>? ?? [])
           .map((value) => value.toString())
           .toList(),
-      logs: (json['logs'] as List<dynamic>? ?? [])
-          .map((item) => JournalEntry.fromJson(item as Map<String, dynamic>))
-          .toList(),
-      weights: (json['weights'] as List<dynamic>? ?? [])
-          .map((value) => (value as num).toDouble())
+      logs: logs,
+      weights: weights,
+      weightHistory: rawWeightHistory
+          ?.map((item) => WeightRecord.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
   }
@@ -1392,6 +1458,7 @@ class AppState extends ChangeNotifier {
     if (index < 0) return;
     final current = pets[index];
     final nextWeights = [...current.weights];
+    final nextWeightHistory = [...current.weightHistory];
     final numericWeight = weight == null
         ? null
         : double.tryParse(
@@ -1399,12 +1466,16 @@ class AppState extends ChangeNotifier {
           );
     if (numericWeight != null && numericWeight > 0) {
       nextWeights.add(numericWeight);
+      nextWeightHistory.add(
+        WeightRecord(value: numericWeight, recordedAt: DateTime.now()),
+      );
     }
     pets[index] = current.copyWith(
       temperature: temperature,
       humidity: humidity,
       weight: weight,
       weights: nextWeights,
+      weightHistory: nextWeightHistory,
     );
     notifyListeners();
     unawaited(_persist());

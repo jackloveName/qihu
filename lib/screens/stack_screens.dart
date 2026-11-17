@@ -660,42 +660,13 @@ class _GrowthChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final recordedValues = pet.weights.where((value) => value > 0).toList();
-    final values = recordedValues.length > 6
-        ? recordedValues.sublist(recordedValues.length - 6)
-        : recordedValues;
-    if (values.isEmpty) {
-      return PaperCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Text('体重变化', style: AppText.display(15.5)),
-                const Spacer(),
-                Text(
-                  '近 6 次记录',
-                  style: AppText.body(
-                    10,
-                    color: AppColors.faint,
-                    weight: FontWeight.w600,
-                    spacing: 0.6,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            const EmptyState(
-              title: '还没有体重记录',
-              message: '记录第一次体重后，这里会展示最近 6 次变化趋势。',
-            ),
-          ],
-        ),
-      );
-    }
-    final max = values.reduce((a, b) => a > b ? a : b);
-    final min = values.reduce((a, b) => a < b ? a : b);
-    final range = (max - min).abs() < 0.001 ? 1.0 : max - min;
+    final allRecords =
+        pet.weightHistory.where((record) => record.value > 0).toList()
+          ..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));
+    final recentRecords = allRecords.length > 6
+        ? allRecords.sublist(allRecords.length - 6)
+        : allRecords;
+    final unit = pet.weight.trim().endsWith('kg') ? 'kg' : 'g';
     return Column(
       children: [
         PaperCard(
@@ -707,7 +678,7 @@ class _GrowthChart extends StatelessWidget {
                   Text('体重变化', style: AppText.display(15.5)),
                   const Spacer(),
                   Text(
-                    '近 6 次记录',
+                    '近 6 次 · $unit',
                     style: AppText.body(
                       10,
                       color: AppColors.faint,
@@ -718,79 +689,255 @@ class _GrowthChart extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                height: 128,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (var index = 0; index < values.length; index++)
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            left: index == 0 ? 0 : 5,
-                            right: index == values.length - 1 ? 0 : 5,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TweenAnimationBuilder<double>(
-                                tween: Tween(
-                                  begin: 0,
-                                  end:
-                                      22 + ((values[index] - min) / range) * 74,
-                                ),
-                                duration: Duration(
-                                  milliseconds: 450 + index * 70,
-                                ),
-                                curve: Curves.easeOutCubic,
-                                builder: (context, height, _) {
-                                  return Container(
-                                    height: height.clamp(8, 96),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: index == values.length - 1
-                                            ? [
-                                                AppColors.brass2,
-                                                AppColors.brass,
-                                              ]
-                                            : [
-                                                const Color(0xFF3B7F6A),
-                                                AppColors.brand,
-                                              ],
-                                      ),
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(6),
-                                        bottom: Radius.circular(3),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                values[index].toStringAsFixed(
-                                  values[index] < 10 ? 1 : 0,
-                                ),
-                                style: AppText.number(
-                                  10,
-                                  color: AppColors.muted,
-                                  weight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+              if (recentRecords.isEmpty)
+                const EmptyState(
+                  title: '还没有体重记录',
+                  message: '记录第一次体重后，这里会展示最近 6 次变化趋势。',
+                )
+              else
+                Semantics(
+                  label:
+                      '最近六次体重记录：${recentRecords.map((record) => '${record.recordedAt.month}月${record.recordedAt.day}日 ${record.value} $unit').join('，')}',
+                  child: SizedBox(
+                    height: 220,
+                    child: CustomPaint(
+                      key: const ValueKey('weight-line-chart'),
+                      painter: _WeightLineChartPainter(
+                        records: recentRecords,
+                        unit: unit,
                       ),
-                  ],
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
                 ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        PaperCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('全部体重记录', style: AppText.display(15.5)),
+                  const Spacer(),
+                  Text(
+                    '${allRecords.length} 条',
+                    style: AppText.body(10, color: AppColors.muted),
+                  ),
+                ],
               ),
+              const SizedBox(height: 12),
+              if (allRecords.isEmpty)
+                Text(
+                  '暂无历史体重数据',
+                  style: AppText.body(11.5, color: AppColors.faint),
+                )
+              else
+                for (
+                  var index = allRecords.length - 1;
+                  index >= 0;
+                  index--
+                ) ...[
+                  _WeightHistoryRow(record: allRecords[index], unit: unit),
+                  if (index > 0)
+                    const Divider(height: 19, color: AppColors.hair),
+                ],
             ],
           ),
         ),
       ],
     );
+  }
+}
+
+class _WeightHistoryRow extends StatelessWidget {
+  const _WeightHistoryRow({required this.record, required this.unit});
+
+  final WeightRecord record;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = record.recordedAt;
+    final dateLabel =
+        '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}'
+        ' ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final value = record.value.toStringAsFixed(record.value % 1 == 0 ? 0 : 1);
+    return Row(
+      children: [
+        const Icon(
+          Icons.monitor_weight_outlined,
+          size: 17,
+          color: AppColors.brand,
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            dateLabel,
+            style: AppText.number(11, color: AppColors.muted),
+          ),
+        ),
+        Text(
+          '$value $unit',
+          style: AppText.number(12.5, weight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeightLineChartPainter extends CustomPainter {
+  _WeightLineChartPainter({required this.records, required this.unit});
+
+  final List<WeightRecord> records;
+  final String unit;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (records.isEmpty) return;
+    const left = 42.0;
+    const right = 8.0;
+    const top = 10.0;
+    const bottom = 30.0;
+    final plot = Rect.fromLTRB(
+      left,
+      top,
+      size.width - right,
+      size.height - bottom,
+    );
+    var minValue = records
+        .map((record) => record.value)
+        .reduce((a, b) => a < b ? a : b);
+    var maxValue = records
+        .map((record) => record.value)
+        .reduce((a, b) => a > b ? a : b);
+    final spread = maxValue - minValue;
+    final padding = spread.abs() < 0.001
+        ? (maxValue.abs() * 0.1).clamp(0.5, double.infinity)
+        : spread * 0.14;
+    minValue = (minValue - padding).clamp(0.0, double.infinity).toDouble();
+    maxValue += padding;
+    if (maxValue <= minValue) maxValue = minValue + 1;
+
+    final gridPaint = Paint()
+      ..color = AppColors.hair
+      ..strokeWidth = 1;
+    final labelStyle = TextStyle(
+      color: AppColors.faint,
+      fontSize: 8.5,
+      fontWeight: FontWeight.w500,
+    );
+    for (var index = 0; index <= 4; index++) {
+      final ratio = index / 4;
+      final y = plot.bottom - plot.height * ratio;
+      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), gridPaint);
+      final value = minValue + (maxValue - minValue) * ratio;
+      _paintText(
+        canvas,
+        _formatValue(value),
+        Offset(plot.left - 7, y),
+        labelStyle,
+        alignRight: true,
+        centerVertically: true,
+      );
+    }
+
+    final points = <Offset>[];
+    for (var index = 0; index < records.length; index++) {
+      final x = records.length == 1
+          ? plot.center.dx
+          : plot.left + plot.width * index / (records.length - 1);
+      final y =
+          plot.bottom -
+          plot.height *
+              (records[index].value - minValue) /
+              (maxValue - minValue);
+      points.add(Offset(x, y));
+      final date = records[index].recordedAt;
+      _paintText(
+        canvas,
+        '${date.month}/${date.day}',
+        Offset(x, plot.bottom + 8),
+        labelStyle,
+        centerHorizontally: true,
+      );
+    }
+
+    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      linePath.lineTo(point.dx, point.dy);
+    }
+    final areaPath = Path.from(linePath)
+      ..lineTo(points.last.dx, plot.bottom)
+      ..lineTo(points.first.dx, plot.bottom)
+      ..close();
+    canvas.drawPath(
+      areaPath,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x3D2C6A57), Color(0x052C6A57)],
+        ).createShader(plot),
+    );
+    canvas.drawPath(
+      linePath,
+      Paint()
+        ..color = AppColors.brand
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    for (var index = 0; index < points.length; index++) {
+      final point = points[index];
+      final color = index == points.length - 1
+          ? AppColors.brass
+          : AppColors.brand;
+      canvas.drawCircle(point, 5.2, Paint()..color = Colors.white);
+      canvas.drawCircle(
+        point,
+        4,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2,
+      );
+    }
+  }
+
+  String _formatValue(double value) {
+    return value < 10 ? value.toStringAsFixed(1) : value.toStringAsFixed(0);
+  }
+
+  void _paintText(
+    Canvas canvas,
+    String text,
+    Offset anchor,
+    TextStyle style, {
+    bool alignRight = false,
+    bool centerHorizontally = false,
+    bool centerVertically = false,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final dx = alignRight
+        ? anchor.dx - painter.width
+        : centerHorizontally
+        ? anchor.dx - painter.width / 2
+        : anchor.dx;
+    final dy = centerVertically ? anchor.dy - painter.height / 2 : anchor.dy;
+    painter.paint(canvas, Offset(dx, dy));
+  }
+
+  @override
+  bool shouldRepaint(covariant _WeightLineChartPainter oldDelegate) {
+    return oldDelegate.records != records || oldDelegate.unit != unit;
   }
 }
 

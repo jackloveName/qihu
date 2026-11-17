@@ -805,6 +805,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     ),
                   ),
                 ),
+                SliverToBoxAdapter(child: _buildRepeatSection()),
                 SliverToBoxAdapter(
                   child: FormSection(
                     label: '执行时间',
@@ -865,111 +866,6 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: FormSection(
-                    label: '重复方式',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        BottomSelectField<String>(
-                          title: '选择重复方式',
-                          value: _repeatMode,
-                          icon: Icons.repeat_rounded,
-                          options: [
-                            for (final mode in _repeatModes)
-                              BottomSelectOption(value: mode, label: mode),
-                          ],
-                          onChanged: (value) {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            setState(() {
-                              _repeatMode = value;
-                              if (value == '指定星期' && _customWeekdays.isEmpty) {
-                                _customWeekdays.add(DateTime.now().weekday);
-                              }
-                            });
-                          },
-                        ),
-                        if (_repeatMode == '指定星期') ...[
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              for (var weekday = 1; weekday <= 7; weekday++)
-                                FilterChip(
-                                  label: Text(
-                                    '周${CareTaskDefinition.weekdayLabel(weekday)}',
-                                  ),
-                                  selected: _customWeekdays.contains(weekday),
-                                  showCheckmark: false,
-                                  selectedColor: AppColors.brandWash,
-                                  side: BorderSide(
-                                    color: _customWeekdays.contains(weekday)
-                                        ? AppColors.brandLine
-                                        : AppColors.hair,
-                                  ),
-                                  onSelected: (selected) {
-                                    setState(() {
-                                      if (selected) {
-                                        _customWeekdays.add(weekday);
-                                      } else if (_customWeekdays.length > 1) {
-                                        _customWeekdays.remove(weekday);
-                                      }
-                                    });
-                                  },
-                                ),
-                            ],
-                          ),
-                        ],
-                        if (_repeatMode == '固定日期') ...[
-                          const SizedBox(height: 10),
-                          InkWell(
-                            key: const ValueKey('task-fixed-date-field'),
-                            onTap: _pickFixedDate,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              height: 48,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.paper,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.hair),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.event_outlined,
-                                    size: 18,
-                                    color: AppColors.muted,
-                                  ),
-                                  const SizedBox(width: 9),
-                                  Expanded(
-                                    child: Text(
-                                      PetDates.reportDate(_fixedDate),
-                                      style: AppText.number(13),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    size: 18,
-                                    color: AppColors.faint,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        Text(
-                          _repeatDescription,
-                          style: AppText.body(10.5, color: AppColors.muted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
                 const SliverToBoxAdapter(child: SizedBox(height: 110)),
               ],
             ),
@@ -978,6 +874,108 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       ),
       bottomNavigationBar: BottomActionBar(
         child: PrimaryButton(label: '创建任务', onPressed: _create),
+      ),
+    );
+  }
+
+  Widget _buildRepeatSection() {
+    return FormSection(
+      label: '重复方式',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BottomSelectField<String>(
+            title: '选择重复方式',
+            value: _repeatMode,
+            icon: Icons.repeat_rounded,
+            options: [
+              for (final mode in _repeatModes)
+                BottomSelectOption(value: mode, label: mode),
+            ],
+            onChanged: (value) {
+              FocusManager.instance.primaryFocus?.unfocus();
+              setState(() {
+                _repeatMode = value;
+                if (value == '指定星期' && _customWeekdays.isEmpty) {
+                  _customWeekdays.add(DateTime.now().weekday);
+                }
+              });
+            },
+          ),
+          if (_repeatMode == '指定星期') ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (var weekday = 1; weekday <= 7; weekday++)
+                  FilterChip(
+                    label: Text('周${CareTaskDefinition.weekdayLabel(weekday)}'),
+                    selected: _customWeekdays.contains(weekday),
+                    showCheckmark: false,
+                    selectedColor: AppColors.brandWash,
+                    side: BorderSide(
+                      color: _customWeekdays.contains(weekday)
+                          ? AppColors.brandLine
+                          : AppColors.hair,
+                    ),
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _customWeekdays.add(weekday);
+                        } else if (_customWeekdays.length > 1) {
+                          _customWeekdays.remove(weekday);
+                        }
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ],
+          if (_repeatMode == '固定日期') ...[
+            const SizedBox(height: 10),
+            InkWell(
+              key: const ValueKey('task-fixed-date-field'),
+              onTap: _pickFixedDate,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.paper,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.hair),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.event_outlined,
+                      size: 18,
+                      color: AppColors.muted,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        PetDates.reportDate(_fixedDate),
+                        style: AppText.number(13),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: AppColors.faint,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            _repeatDescription,
+            style: AppText.body(10.5, color: AppColors.muted),
+          ),
+        ],
       ),
     );
   }
