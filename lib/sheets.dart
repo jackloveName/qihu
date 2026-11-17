@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -58,43 +56,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       ),
       child: Column(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              GestureDetector(
-                onTap: _savingAvatar ? null : _pickAvatar,
-                child: StoredProfileAvatar(
-                  path: _avatarPath,
-                  size: 78,
-                  radius: 25,
-                ),
-              ),
-              Positioned(
-                right: -6,
-                bottom: -6,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.paper,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.brass2),
-                  ),
-                  child: _savingAvatar
-                      ? const Padding(
-                          padding: EdgeInsets.all(7),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(
-                          Icons.photo_camera_outlined,
-                          size: 15,
-                          color: AppColors.brand,
-                        ),
-                ),
-              ),
-            ],
+          EditableAvatar(
+            path: _avatarPath,
+            size: 78,
+            radius: 25,
+            isSaving: _savingAvatar,
+            onPressed: _pickAvatar,
           ),
-          const SizedBox(height: 9),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -679,7 +647,6 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   String _tag = '日常观察';
   final _descriptionController = TextEditingController();
   final _picker = ImagePicker();
-  Uint8List? _photoBytes;
   String? _photoPath;
   DateTime? _followUpAt;
   bool _contactedVet = false;
@@ -725,16 +692,8 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-          decoration: const BoxDecoration(
-            color: AppColors.paper,
-            border: Border(top: BorderSide(color: AppColors.hair)),
-          ),
-          child: PrimaryButton(label: '保存到本地', onPressed: _save),
-        ),
+      bottomNavigationBar: BottomActionBar(
+        child: PrimaryButton(label: '保存到本地', onPressed: _save),
       ),
     );
   }
@@ -815,7 +774,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
         ),
         FormSection(
           label: '照片（可选）',
-          child: _photoBytes == null
+          child: _photoPath == null
               ? GestureDetector(
                   onTap: _pickPhoto,
                   child: Container(
@@ -855,14 +814,11 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
                 )
               : Stack(
                   children: [
-                    ClipRRect(
+                    AppLocalImage(
+                      path: _photoPath,
+                      width: double.infinity,
+                      height: 150,
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.memory(
-                        _photoBytes!,
-                        width: double.infinity,
-                        height: 150,
-                        fit: BoxFit.cover,
-                      ),
                     ),
                     Positioned(
                       right: 8,
@@ -872,7 +828,6 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
                         shape: const CircleBorder(),
                         child: InkWell(
                           onTap: () => setState(() {
-                            _photoBytes = null;
                             _photoPath = null;
                           }),
                           customBorder: const CircleBorder(),
@@ -994,7 +949,6 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
         maxWidth: 1800,
       );
       if (image == null) return;
-      final bytes = await image.readAsBytes();
       var path = image.path;
       try {
         final documents = await getApplicationDocumentsDirectory();
@@ -1008,7 +962,6 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
       }
       if (!mounted) return;
       setState(() {
-        _photoBytes = bytes;
         _photoPath = path;
       });
     } on Object {
@@ -1684,18 +1637,18 @@ class ReportPreviewSheet extends StatelessWidget {
                 ),
                 Row(
                   children: [
-                    _ReportMetric(label: '最近体重', value: pet.weight),
-                    _ReportMetric(label: '环境温度', value: pet.temperature),
+                    LabeledMetric(label: '最近体重', value: pet.weight),
+                    LabeledMetric(label: '环境温度', value: pet.temperature),
                   ],
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _ReportMetric(
+                    LabeledMetric(
                       label: '近 7 日任务',
-                      value: '${state.tasks.length} 项',
+                      value: '${state.taskCountForPetSince(pet.id)} 项',
                     ),
-                    _ReportMetric(label: '健康记录', value: '${pet.logs.length} 条'),
+                    LabeledMetric(label: '健康记录', value: '${pet.logs.length} 条'),
                   ],
                 ),
                 const Padding(
@@ -1713,30 +1666,6 @@ class ReportPreviewSheet extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportMetric extends StatelessWidget {
-  const _ReportMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: AppText.body(9.5, color: AppColors.faint, spacing: 0.6),
-          ),
-          const SizedBox(height: 4),
-          Text(value, style: AppText.number(14)),
         ],
       ),
     );

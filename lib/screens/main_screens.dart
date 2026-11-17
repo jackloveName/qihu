@@ -1,21 +1,22 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../app_theme.dart';
+import '../data/china_cities.dart';
 import '../date_utils.dart';
 import '../knowledge_content.dart';
 import '../models.dart';
 import '../services/api/api_settings.dart';
 import '../services/auth_service.dart';
+import '../services/local_image_store.dart';
 import '../storage/session_token_store.dart';
 import '../weather_service.dart';
 import 'agreement_screen.dart';
 import 'auth_screens.dart';
 import '../widgets/animal_art.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/city_picker_sheet.dart';
 
 typedef PetOpenCallback = void Function(String petId);
 typedef TaskOpenCallback = void Function(CareTask task);
@@ -26,11 +27,13 @@ class TodayScreen extends StatelessWidget {
     required this.state,
     required this.onOpenTask,
     required this.onOpenKnowledge,
+    required this.onAddPet,
   });
 
   final AppState state;
   final TaskOpenCallback onOpenTask;
   final VoidCallback onOpenKnowledge;
+  final VoidCallback onAddPet;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +47,8 @@ class TodayScreen extends StatelessWidget {
             final bTime = b.latestRun?.performedAt ?? _taskDateTime(b);
             return bTime.compareTo(aTime);
           });
-    final allDone = pending.isEmpty && completed.isNotEmpty;
+    final allDone =
+        state.pets.isNotEmpty && pending.isEmpty && completed.isNotEmpty;
     final completedForHome = completed.take(10).toList();
     final tasks = pending.take(5).toList();
     final tomorrow = PetDates.dateOnly().add(const Duration(days: 1));
@@ -71,6 +75,17 @@ class TodayScreen extends StatelessWidget {
               child: _WeatherCard(state: state, city: state.city),
             ),
           ),
+          if (state.isGuest)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: GuestModeCard(
+                  key: const ValueKey('guest-guide-home'),
+                  message: '最多添加 3 只动物，游客数据仅保留 3 天。',
+                  onLogin: state.signOut,
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: _DailyKnowledgeCard(onTap: onOpenKnowledge),
           ),
@@ -86,11 +101,22 @@ class TodayScreen extends StatelessWidget {
           else ...[
             const SliverToBoxAdapter(child: _NextTasksHeader(title: '接下来要做')),
             if (tasks.isEmpty)
-              const SliverToBoxAdapter(
-                child: EmptyState(
-                  title: '今天的照护已完成',
-                  message: '可以去任务页查看今天的执行记录。',
-                ),
+              SliverToBoxAdapter(
+                child: state.pets.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: FirstPetPrompt(
+                          key: const ValueKey('first-pet-home'),
+                          guestMode: state.isGuest,
+                          onAddPet: onAddPet,
+                        ),
+                      )
+                    : EmptyState(
+                        title: state.isGuest ? '还没有照护任务' : '今天的照护已完成',
+                        message: state.isGuest
+                            ? '登录后可以创建和管理每日照护任务。'
+                            : '可以去任务页查看今天的执行记录。',
+                      ),
               )
             else
               SliverList.builder(
@@ -422,75 +448,8 @@ class _WeatherCardState extends State<_WeatherCard> {
   }
 
   Future<void> _pickCity() async {
-    final city = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.62,
-        ),
-        decoration: const BoxDecoration(
-          color: AppColors.paper,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 38,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.hair2,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(child: Text('选择天气城市', style: AppText.display(20))),
-                  RoundIconButton(
-                    icon: Icons.close_rounded,
-                    size: 32,
-                    onPressed: () => Navigator.pop(context),
-                    foreground: AppColors.muted,
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  4,
-                  16,
-                  MediaQuery.paddingOf(context).bottom + 18,
-                ),
-                children: [
-                  for (final option in AppState.availableCities)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 7),
-                      child: MenuRow(
-                        icon: Icons.location_on_outlined,
-                        title: option,
-                        tone: option == widget.city
-                            ? MenuTone.brand
-                            : MenuTone.amber,
-                        onTap: () => Navigator.pop(context, option),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (city != null) widget.state.updateCity(city);
+    final city = await CityPickerSheet.show(context, current: widget.city);
+    if (city != null) widget.state.updateCity(city.value);
   }
 
   @override
@@ -563,7 +522,7 @@ class _WeatherCardState extends State<_WeatherCard> {
                           ),
                         ),
                         child: Text(
-                          widget.city.split('·').first.trim(),
+                          ChinaCities.match(widget.city)?.name ?? widget.city,
                           style: AppText.body(
                             9,
                             color: const Color(0xFFE6E2D6),
@@ -1478,71 +1437,92 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
               physics: const BouncingScrollPhysics(),
               slivers: [
                 const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                SliverToBoxAdapter(
-                  child: Container(
-                    height: 44,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.paper,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.hair),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x0F15211C),
-                          blurRadius: 18,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.search_rounded,
-                          size: 17,
-                          color: AppColors.faint,
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: (_) => setState(() {}),
-                            style: AppText.body(13.5),
-                            decoration: const InputDecoration(
-                              hintText: '搜索动物名称',
-                              filled: false,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                            ),
-                          ),
-                        ),
-                        if (_searchController.text.isNotEmpty)
-                          GestureDetector(
-                            onTap: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                            child: const Icon(
-                              Icons.close_rounded,
-                              size: 16,
-                              color: AppColors.faint,
-                            ),
-                          ),
-                      ],
+                if (widget.state.isGuest)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: GuestModeCard(
+                        key: const ValueKey('guest-guide-animals'),
+                        message: '游客最多添加 3 只动物，数据将在 3 天后自动清理。',
+                        onLogin: widget.state.signOut,
+                      ),
                     ),
                   ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 4)),
-                if (filtered.isEmpty)
+                if (widget.state.pets.isEmpty)
+                  SliverToBoxAdapter(
+                    child: FirstPetPrompt(
+                      key: const ValueKey('first-pet-animals'),
+                      guestMode: widget.state.isGuest,
+                      onAddPet: widget.onAddPet,
+                    ),
+                  ),
+                if (widget.state.pets.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.paper,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.hair),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x0F15211C),
+                            blurRadius: 18,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.search_rounded,
+                            size: 17,
+                            color: AppColors.faint,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              onChanged: (_) => setState(() {}),
+                              style: AppText.body(13.5),
+                              decoration: const InputDecoration(
+                                hintText: '搜索动物名称',
+                                filled: false,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                              ),
+                            ),
+                          ),
+                          if (_searchController.text.isNotEmpty)
+                            GestureDetector(
+                              onTap: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                              child: const Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: AppColors.faint,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (widget.state.pets.isNotEmpty)
+                  const SliverToBoxAdapter(child: SizedBox(height: 4)),
+                if (widget.state.pets.isNotEmpty && filtered.isEmpty)
                   const SliverToBoxAdapter(
                     child: EmptyState(
                       title: '没有找到匹配的动物',
                       message: '换个关键词，或者新建一个档案。',
                     ),
                   )
-                else
+                else if (widget.state.pets.isNotEmpty)
                   SliverPadding(
                     padding: const EdgeInsets.only(top: 14),
                     sliver: SliverGrid(
@@ -1909,23 +1889,12 @@ class _AnimalPhoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List>(
-      future: XFile(path).readAsBytes(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: fallback);
-        if (!snapshot.hasData) {
-          return ColoredBox(
-            color: AppColors.paper2,
-            child: Center(child: fallback),
-          );
-        }
-        return Image.memory(
-          snapshot.data!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-        );
-      },
+    return AppLocalImage(
+      path: path,
+      width: double.infinity,
+      height: double.infinity,
+      placeholder: fallback,
+      errorWidget: fallback,
     );
   }
 }
@@ -1938,10 +1907,16 @@ String _companionDaysLabel(PetProfile pet) {
 }
 
 class TasksScreen extends StatefulWidget {
-  const TasksScreen({super.key, required this.state, required this.onOpenTask});
+  const TasksScreen({
+    super.key,
+    required this.state,
+    required this.onOpenTask,
+    required this.onAddPet,
+  });
 
   final AppState state;
   final TaskOpenCallback onOpenTask;
+  final VoidCallback onAddPet;
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -1952,6 +1927,36 @@ class _TasksScreenState extends State<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.state.pets.isEmpty) {
+      return PagePadding(
+        child: CustomScrollView(
+          key: const PageStorageKey('tasks-scroll'),
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            if (widget.state.isGuest)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GuestModeCard(
+                    key: const ValueKey('guest-guide-tasks'),
+                    message: '游客数据仅保留 3 天，登录后本地游客数据会被清空。',
+                    onLogin: widget.state.signOut,
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: FirstPetPrompt(
+                key: const ValueKey('first-pet-tasks'),
+                guestMode: widget.state.isGuest,
+                onAddPet: widget.onAddPet,
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 92)),
+          ],
+        ),
+      );
+    }
     final week = PetDates.currentWeek(_selectedDate);
     final now = DateTime.now();
     final isToday =
@@ -1990,6 +1995,17 @@ class _TasksScreenState extends State<TasksScreen> {
           physics: const BouncingScrollPhysics(),
           slivers: [
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            if (widget.state.isGuest)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GuestModeCard(
+                    key: const ValueKey('guest-guide-tasks'),
+                    message: '游客数据仅保留 3 天，登录后本地游客数据会被清空。',
+                    onLogin: widget.state.signOut,
+                  ),
+                ),
+              ),
             SliverToBoxAdapter(
               child: Row(
                 children: [
@@ -2760,6 +2776,17 @@ class MineScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (state.isGuest)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: GuestModeCard(
+                  key: const ValueKey('guest-guide-mine'),
+                  message: '游客最多 3 只动物，数据保留 3 天；登录会清空游客数据。',
+                  onLogin: state.signOut,
+                ),
+              ),
+            ),
           SliverToBoxAdapter(child: const SizedBox(height: 18)),
           SliverToBoxAdapter(
             child: MenuGroup(
@@ -2855,18 +2882,28 @@ class MineScreen extends StatelessWidget {
             child: MenuGroup(
               title: '账号',
               children: [
-                MenuRow(
-                  icon: Icons.logout_rounded,
-                  title: '退出登录',
-                  tone: MenuTone.neutral,
-                  onTap: () => _confirmLogout(context),
-                ),
-                MenuRow(
-                  icon: Icons.person_remove_outlined,
-                  title: '注销账号',
-                  tone: MenuTone.rose,
-                  onTap: () => _confirmDeleteAccount(context),
-                ),
+                if (state.isGuest)
+                  MenuRow(
+                    icon: Icons.login_rounded,
+                    title: '登录 / 注册',
+                    subtitle: '解除游客限制，保留当前本机档案',
+                    tone: MenuTone.brand,
+                    onTap: state.signOut,
+                  )
+                else ...[
+                  MenuRow(
+                    icon: Icons.logout_rounded,
+                    title: '退出登录',
+                    tone: MenuTone.neutral,
+                    onTap: () => _confirmLogout(context),
+                  ),
+                  MenuRow(
+                    icon: Icons.person_remove_outlined,
+                    title: '注销账号',
+                    tone: MenuTone.rose,
+                    onTap: () => _confirmDeleteAccount(context),
+                  ),
+                ],
               ],
             ),
           ),
@@ -2952,17 +2989,43 @@ class MineScreen extends StatelessWidget {
         await auth.destroyAccount(token);
       }
     } on Object catch (error) {
-      if (context.mounted) {
-        showAppMessage(
-          context,
-          '云端注销失败：${error.toString().replaceFirst('Bad state: ', '')}',
-        );
-      }
-      return;
+      if (!context.mounted) return;
+      final deleteLocal = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: AppColors.paper,
+          title: Text('云端注销失败', style: AppText.display(19)),
+          content: Text(
+            '${error.toString().replaceFirst('Bad state: ', '')}\n\n'
+            '是否仅删除本机数据？本机数据删除后无法恢复。',
+            style: AppText.body(12.5, color: AppColors.muted, height: 1.65),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.rose,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('仅删除本机数据'),
+            ),
+          ],
+        ),
+      );
+      if (deleteLocal != true) return;
     } finally {
       auth.close();
     }
     await SessionTokenStore.clear();
+    try {
+      await LocalImageStore.deleteAll();
+    } on Object {
+      // Database clearing below remains the primary deletion action.
+    }
     if (context.mounted) state.deleteLocalAccount();
   }
 }

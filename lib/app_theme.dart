@@ -36,8 +36,8 @@ abstract final class AppColors {
 }
 
 abstract final class AppText {
-  static const sans = 'NotoSansSC';
-  static const serif = 'NotoSerifSC';
+  static const sans = 'PingFang SC';
+  static const serif = 'Songti SC';
   static const mono = 'SF Mono';
 
   static TextStyle display(
@@ -49,11 +49,7 @@ abstract final class AppText {
   }) {
     return TextStyle(
       fontFamily: serif,
-      fontFamilyFallback: const [
-        'STSong',
-        'Noto Serif CJK SC',
-        'Noto Serif SC',
-      ],
+      fontFamilyFallback: const ['Songti SC', 'STSong', 'PingFang SC'],
       fontSize: size,
       fontWeight: weight,
       color: color,
@@ -73,12 +69,7 @@ abstract final class AppText {
   }) {
     return TextStyle(
       fontFamily: sans,
-      fontFamilyFallback: const [
-        'PingFang SC',
-        'Noto Sans CJK SC',
-        'Microsoft YaHei',
-        'sans-serif',
-      ],
+      fontFamilyFallback: const ['PingFang SC', 'Helvetica Neue', 'sans-serif'],
       fontSize: size,
       fontWeight: weight,
       color: color,
@@ -125,11 +116,7 @@ ThemeData buildAppTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: AppColors.canvas,
     fontFamily: AppText.sans,
-    fontFamilyFallback: const [
-      'Noto Sans CJK SC',
-      'Microsoft YaHei',
-      'sans-serif',
-    ],
+    fontFamilyFallback: const ['PingFang SC', 'Helvetica Neue', 'sans-serif'],
     splashFactory: InkSparkle.splashFactory,
     visualDensity: VisualDensity.standard,
     textSelectionTheme: const TextSelectionThemeData(

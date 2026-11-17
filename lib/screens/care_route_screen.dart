@@ -186,31 +186,23 @@ class _CareRouteScreenState extends State<CareRouteScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-          decoration: const BoxDecoration(
-            color: AppColors.paper,
-            border: Border(top: BorderSide(color: AppColors.hair)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PrimaryButton(
-                label: '完成并继续',
-                icon: Icons.check_rounded,
-                onPressed: () => _complete(task, pet),
+      bottomNavigationBar: BottomActionBar(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PrimaryButton(
+              label: '完成并继续',
+              icon: Icons.check_rounded,
+              onPressed: () => _complete(task, pet),
+            ),
+            TextButton(
+              onPressed: _skip,
+              child: Text(
+                '跳过',
+                style: AppText.body(10.5, color: AppColors.muted),
               ),
-              TextButton(
-                onPressed: _skip,
-                child: Text(
-                  '跳过',
-                  style: AppText.body(10.5, color: AppColors.muted),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

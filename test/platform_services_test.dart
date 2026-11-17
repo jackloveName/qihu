@@ -14,11 +14,11 @@ void main() {
     expect(ApiSettings.appBrand, '金灵优记');
   });
 
-  test('协议配置使用 JLYJ 对应的隐私政策和注册协议键', () {
-    expect(ApiSettings.privacyProtocolKey, 'JLYJ_PRIVACY_PROTOC');
-    expect(ApiSettings.registerProtocolKey, 'JLYJ_REGISTER_PROTOC');
-    expect(AgreementService.privacyKey, 'JLYJ_PRIVACY_PROTOC');
-    expect(AgreementService.registerKey, 'JLYJ_REGISTER_PROTOC');
+  test('协议配置使用 BC 对应的隐私政策和注册协议键', () {
+    expect(ApiSettings.privacyProtocolKey, 'BC_PRIVACY_PROTOC');
+    expect(ApiSettings.registerProtocolKey, 'BC_REGISTER_PROTOC');
+    expect(AgreementService.privacyKey, 'BC_PRIVACY_PROTOC');
+    expect(AgreementService.registerKey, 'BC_REGISTER_PROTOC');
   });
 
   test('API 客户端解析成功响应并携带 Token', () async {
@@ -93,5 +93,22 @@ void main() {
     expect(update!.version, '1.10.0');
     expect(update.force, isTrue);
     expect(update.downloadUrl, 'https://example.test/app');
+    expect(update.notes, '修复问题');
+    expect(update.platform, AppUpdatePlatform.ios);
+
+    final android = AppUpdateService.parseUpdateInfo(
+      {
+        'androidVersion': '2.1.0',
+        'androidAppDownloadUrl': 'https://example.test/qihu.apk',
+        'androidUpdateType': '1',
+        'androidUpdateWay': '2',
+        'androidVersionDesc': '安卓应用内安装',
+      },
+      currentVersion: '2.0.0',
+      isIOS: false,
+    );
+    expect(android!.platform, AppUpdatePlatform.android);
+    expect(android.androidMode, AndroidUpdateMode.inApp);
+    expect(android.notes, '安卓应用内安装');
   });
 }

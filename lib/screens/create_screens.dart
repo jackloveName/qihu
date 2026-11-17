@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -79,32 +77,23 @@ class _AddPetScreenState extends State<AddPetScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_photos.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var index = 0; index < _photos.length; index++)
-                  _EditablePetPhoto(
-                    path: _photos[index],
-                    onRemove: () => setState(() => _photos.removeAt(index)),
-                  ),
-              ],
-            ),
-          if (_photos.length < 9) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _savingPhotos ? null : _pickPhotos,
-              icon: _savingPhotos
-                  ? const SizedBox(
-                      width: 15,
-                      height: 15,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(_savingPhotos ? '正在处理照片' : '添加宠物照片'),
-            ),
-          ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var index = 0; index < _photos.length; index++)
+                _EditablePetPhoto(
+                  path: _photos[index],
+                  onRemove: () => setState(() => _photos.removeAt(index)),
+                ),
+              if (_photos.length < 9)
+                _AddPhotoTile(
+                  saving: _savingPhotos,
+                  count: _photos.length,
+                  onTap: _pickPhotos,
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -410,18 +399,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-          decoration: const BoxDecoration(
-            color: AppColors.paper,
-            border: Border(top: BorderSide(color: AppColors.hair)),
-          ),
-          child: PrimaryButton(
-            label: widget.initialPet == null ? '提交保存' : '保存修改',
-            onPressed: _create,
-          ),
+      bottomNavigationBar: BottomActionBar(
+        child: PrimaryButton(
+          label: widget.initialPet == null ? '提交保存' : '保存修改',
+          onPressed: _create,
         ),
       ),
     );
@@ -569,45 +550,94 @@ class _EditablePetPhoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List>(
-      future: XFile(path).readAsBytes(),
-      builder: (context, snapshot) {
-        return Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: 82,
-                height: 82,
-                color: AppColors.paper2,
-                child: snapshot.hasData
-                    ? Image.memory(snapshot.data!, fit: BoxFit.cover)
-                    : const Icon(Icons.image_outlined, color: AppColors.faint),
+    return Stack(
+      children: [
+        AppLocalImage(
+          path: path,
+          width: 82,
+          height: 82,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        Positioned(
+          right: 3,
+          top: 3,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: AppColors.ink.withValues(alpha: 0.72),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close_rounded,
+                size: 14,
+                color: Colors.white,
               ),
             ),
-            Positioned(
-              right: 3,
-              top: 3,
-              child: GestureDetector(
-                onTap: onRemove,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: AppColors.ink.withValues(alpha: 0.72),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.close_rounded,
-                    size: 14,
-                    color: Colors.white,
-                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddPhotoTile extends StatelessWidget {
+  const _AddPhotoTile({
+    required this.saving,
+    required this.count,
+    required this.onTap,
+  });
+
+  final bool saving;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.paper2,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        key: const ValueKey('pet-add-photo'),
+        onTap: saving ? null : onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 82,
+          height: 82,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.brandLine, width: 1.2),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (saving)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                const Icon(
+                  Icons.add_a_photo_outlined,
+                  color: AppColors.brand,
+                  size: 24,
+                ),
+              const SizedBox(height: 6),
+              Text(
+                saving ? '处理中' : '照片 $count/9',
+                style: AppText.body(
+                  9,
+                  color: saving ? AppColors.faint : AppColors.muted,
+                  weight: FontWeight.w600,
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -747,16 +777,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-          decoration: const BoxDecoration(
-            color: AppColors.paper,
-            border: Border(top: BorderSide(color: AppColors.hair)),
-          ),
-          child: PrimaryButton(label: '创建任务', onPressed: _create),
-        ),
+      bottomNavigationBar: BottomActionBar(
+        child: PrimaryButton(label: '创建任务', onPressed: _create),
       ),
     );
   }

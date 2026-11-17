@@ -8,14 +8,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../app_theme.dart';
+import '../data/china_cities.dart';
 import '../models.dart';
 import '../services/agreement_page_launcher.dart';
 import '../services/agreement_service.dart';
 import '../services/auth_service.dart';
+import '../services/local_image_store.dart';
+import '../storage/privacy_consent_store.dart';
 import '../storage/session_token_store.dart';
 import 'agreement_screen.dart';
 import '../widgets/animal_art.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/city_picker_sheet.dart';
 
 enum _LoginMode { password, code }
 
@@ -556,9 +560,9 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
                             const SizedBox(height: 4),
                             Center(
                               child: TextButton.icon(
-                                onPressed: _acceptedTerms && !_submitting
-                                    ? widget.state.enterGuestMode
-                                    : null,
+                                onPressed: _submitting
+                                    ? null
+                                    : widget.state.enterGuestMode,
                                 icon: const Icon(
                                   Icons.person_outline_rounded,
                                   size: 16,
@@ -605,7 +609,7 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
       showAppMessage(context, '请输入至少 6 位密码');
       return;
     }
-    _completeLogin();
+    unawaited(_completeLogin());
   }
 
   void _loginWithCode(BuildContext context) {
@@ -619,7 +623,7 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
       showAppMessage(context, '验证码不正确');
       return;
     }
-    _completeLogin();
+    unawaited(_completeLogin());
   }
 
   bool _validPhone(BuildContext context) {
@@ -650,8 +654,12 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
     });
   }
 
-  void _completeLogin() {
+  Future<void> _completeLogin() async {
     _countdownTimer?.cancel();
+    if (widget.state.isGuest) {
+      await LocalImageStore.deleteAll();
+    }
+    unawaited(PrivacyConsentStore.accept());
     widget.state.startMemberLogin();
   }
 
@@ -742,7 +750,7 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
         city: widget.state.city,
         careTags: widget.state.careTags,
       );
-      _completeLogin();
+      await _completeLogin();
     } on Object catch (error) {
       if (context.mounted) {
         showAppMessage(
@@ -778,6 +786,129 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
         ? AgreementService.privacyKey
         : AgreementService.registerKey;
     if (await AgreementPageLauncher.open(key) || !context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AgreementScreen(
+          protocolKey: key,
+          title: isPrivacy ? '隐私政策' : '平台注册协议',
+        ),
+      ),
+    );
+  }
+}
+
+class MemberConsentScreen extends StatefulWidget {
+  const MemberConsentScreen({
+    super.key,
+    required this.state,
+    required this.onAccepted,
+  });
+
+  final AppState state;
+  final VoidCallback onAccepted;
+
+  @override
+  State<MemberConsentScreen> createState() => _MemberConsentScreenState();
+}
+
+class _MemberConsentScreenState extends State<MemberConsentScreen> {
+  bool _accepted = false;
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: AppBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(22),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: AppColors.brand,
+                        borderRadius: BorderRadius.circular(23),
+                      ),
+                      child: const Icon(
+                        Icons.privacy_tip_outlined,
+                        size: 34,
+                        color: Color(0xFFF4F1E6),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '隐私政策与注册协议已更新',
+                      textAlign: TextAlign.center,
+                      style: AppText.display(23),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      '继续使用会员功能前，请重新阅读并确认最新条款。',
+                      textAlign: TextAlign.center,
+                      style: AppText.body(
+                        11.5,
+                        color: AppColors.muted,
+                        height: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    PaperCard(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: [
+                          _LoginConsent(
+                            accepted: _accepted,
+                            onChanged: (value) =>
+                                setState(() => _accepted = value),
+                            onOpenPrivacy: () =>
+                                _openAgreement(isPrivacy: true),
+                            onOpenAgreement: () =>
+                                _openAgreement(isPrivacy: false),
+                          ),
+                          const SizedBox(height: 13),
+                          PrimaryButton(
+                            label: _saving ? '正在保存' : '同意并继续',
+                            onPressed: _accepted && !_saving ? _accept : null,
+                          ),
+                          TextButton(
+                            onPressed: _saving ? null : widget.state.signOut,
+                            child: const Text('退出登录'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _accept() async {
+    setState(() => _saving = true);
+    try {
+      await PrivacyConsentStore.accept();
+      if (mounted) widget.onAccepted();
+    } on Object {
+      if (mounted) showAppMessage(context, '无法保存同意状态，请稍后重试');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _openAgreement({required bool isPrivacy}) {
+    final key = isPrivacy
+        ? AgreementService.privacyKey
+        : AgreementService.registerKey;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => AgreementScreen(
@@ -970,90 +1101,108 @@ class _LoginConsent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Semantics(
-          key: const ValueKey('login-consent-checkbox'),
-          checked: accepted,
-          label: '同意隐私政策和注册协议',
-          child: InkResponse(
-            onTap: () => onChanged(!accepted),
-            radius: 20,
-            child: SizedBox(
-              width: 36,
-              height: 34,
-              child: Center(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: accepted ? AppColors.brand : AppColors.paper,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: accepted ? AppColors.brand : AppColors.hair2,
-                      width: 1.3,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 10, 11, 10),
+      decoration: BoxDecoration(
+        color: AppColors.paper2,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: AppColors.hair),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Semantics(
+            key: const ValueKey('login-consent-checkbox'),
+            checked: accepted,
+            label: '已阅读并同意《隐私政策》和《平台注册协议》',
+            child: InkResponse(
+              onTap: () => onChanged(!accepted),
+              radius: 20,
+              child: SizedBox(
+                width: 36,
+                height: 34,
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: accepted ? AppColors.brand : AppColors.paper,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: accepted ? AppColors.brand : AppColors.hair2,
+                        width: 1.3,
+                      ),
                     ),
+                    child: accepted
+                        ? const Icon(
+                            Icons.check_rounded,
+                            size: 14,
+                            color: Color(0xFFF4F1E6),
+                          )
+                        : null,
                   ),
-                  child: accepted
-                      ? const Icon(
-                          Icons.check_rounded,
-                          size: 14,
-                          color: Color(0xFFF4F1E6),
-                        )
-                      : null,
                 ),
               ),
             ),
           ),
-        ),
-        Expanded(
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 0,
-            runSpacing: 2,
-            children: [
-              Text(
-                '同意',
-                style: AppText.body(10, color: AppColors.muted, height: 1.4),
-              ),
-              GestureDetector(
-                key: const ValueKey('login-privacy-link'),
-                onTap: onOpenPrivacy,
-                child: Text(
-                  '《隐私政策》',
-                  style: AppText.body(
-                    10,
-                    color: AppColors.brand,
-                    weight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
-                    decorationColor: AppColors.brandLine,
-                  ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  key: const ValueKey('login-consent-copy'),
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 0,
+                  runSpacing: 2,
+                  children: [
+                    Text(
+                      '已阅读并同意',
+                      style: AppText.body(
+                        10.5,
+                        color: AppColors.ink2,
+                        height: 1.45,
+                      ),
+                    ),
+                    GestureDetector(
+                      key: const ValueKey('login-privacy-link'),
+                      onTap: onOpenPrivacy,
+                      child: Text(
+                        '《隐私政策》',
+                        style: AppText.body(
+                          10.5,
+                          color: AppColors.brand,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '和',
+                      style: AppText.body(
+                        10.5,
+                        color: AppColors.ink2,
+                        height: 1.45,
+                      ),
+                    ),
+                    GestureDetector(
+                      key: const ValueKey('login-agreement-link'),
+                      onTap: onOpenAgreement,
+                      child: Text(
+                        '《平台注册协议》',
+                        style: AppText.body(
+                          10.5,
+                          color: AppColors.brand,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Text(
-                '和',
-                style: AppText.body(10, color: AppColors.muted, height: 1.4),
-              ),
-              GestureDetector(
-                key: const ValueKey('login-agreement-link'),
-                onTap: onOpenAgreement,
-                child: Text(
-                  '《注册协议》',
-                  style: AppText.body(
-                    10,
-                    color: AppColors.brand,
-                    weight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
-                    decorationColor: AppColors.brandLine,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1073,15 +1222,12 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const _tagOptions = ['猫', '狗', '鸟类', '水族', '爬宠', '异宠'];
-
   late final TextEditingController _nicknameController = TextEditingController(
     text: widget.state.nickname,
   );
   late String? _avatarPath = widget.state.avatarPath;
-  late String _city = AppState.availableCities.contains(widget.state.city)
-      ? widget.state.city
-      : AppState.availableCities.first;
+  late String _city =
+      ChinaCities.match(widget.state.city)?.value ?? widget.state.city;
   late final Set<String> _tags = {...widget.state.careTags};
   final _picker = ImagePicker();
   bool _savingAvatar = false;
@@ -1106,59 +1252,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 SliverToBoxAdapter(
                   child: StackHeader(
                     title: widget.editMode ? '编辑个人资料' : '认识一下你',
-                    subtitle: widget.editMode ? '头像、城市与养宠偏好' : '完成资料后开始照护',
+                    subtitle: widget.editMode ? '头像、城市与趣味标签' : '完成资料后开始照护',
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: Center(
                     child: Column(
                       children: [
-                        GestureDetector(
-                          onTap: _savingAvatar ? null : _pickAvatar,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              StoredProfileAvatar(
-                                path: _avatarPath,
-                                size: 88,
-                                radius: 28,
-                              ),
-                              Positioned(
-                                right: -5,
-                                bottom: -5,
-                                child: Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.paper,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: AppColors.brass2),
-                                  ),
-                                  child: _savingAvatar
-                                      ? const Padding(
-                                          padding: EdgeInsets.all(7),
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.photo_camera_outlined,
-                                          size: 16,
-                                          color: AppColors.brand,
-                                        ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 9),
-                        Text(
-                          '选择头像',
-                          style: AppText.body(
-                            10.5,
-                            color: AppColors.muted,
-                            weight: FontWeight.w600,
-                          ),
+                        EditableAvatar(
+                          path: _avatarPath,
+                          size: 88,
+                          radius: 28,
+                          badgeSize: 30,
+                          isSaving: _savingAvatar,
+                          onPressed: _pickAvatar,
+                          label: '选择头像',
                         ),
                       ],
                     ),
@@ -1181,17 +1289,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 SliverToBoxAdapter(
                   child: FormSection(
                     label: '城市',
-                    child: BottomSelectField<String>(
+                    child: CitySelectionField(
                       key: const ValueKey('profile-city-field'),
-                      title: '选择城市',
                       value: _city,
-                      icon: Icons.location_city_outlined,
-                      options: AppState.availableCities
-                          .map(
-                            (city) =>
-                                BottomSelectOption(value: city, label: city),
-                          )
-                          .toList(),
                       onChanged: (value) => setState(() => _city = value),
                     ),
                   ),
@@ -1203,10 +1303,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (final tag in _tagOptions)
+                        for (final tag in AppState.careTagOptions)
                           FilterChip(
                             label: Text(tag),
                             selected: _tags.contains(tag),
+                            showCheckmark: false,
+                            selectedColor: AppColors.brandWash,
+                            backgroundColor: AppColors.paper,
+                            side: BorderSide(
+                              color: _tags.contains(tag)
+                                  ? AppColors.brand
+                                  : AppColors.hair2,
+                              width: _tags.contains(tag) ? 1.4 : 1,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            labelStyle: AppText.body(
+                              11.5,
+                              color: _tags.contains(tag)
+                                  ? AppColors.brand
+                                  : AppColors.ink2,
+                              weight: _tags.contains(tag)
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
                             onSelected: (selected) {
                               setState(() {
                                 if (selected) {
@@ -1221,27 +1342,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: Callout(message: '头像、昵称、城市和养宠标签之后都可以在“我的”里修改。'),
-                ),
                 const SliverToBoxAdapter(child: SizedBox(height: 104)),
               ],
             ),
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-          decoration: const BoxDecoration(
-            color: AppColors.paper,
-            border: Border(top: BorderSide(color: AppColors.hair)),
-          ),
-          child: PrimaryButton(
-            label: widget.editMode ? '保存修改' : '完成设置',
-            onPressed: _finish,
-          ),
+      bottomNavigationBar: BottomActionBar(
+        child: PrimaryButton(
+          label: widget.editMode ? '保存修改' : '保存',
+          onPressed: _finish,
         ),
       ),
     );

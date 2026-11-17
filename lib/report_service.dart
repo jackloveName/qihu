@@ -13,13 +13,10 @@ abstract final class ReportPdfService {
   }) async {
     final pet = state.pets.first;
     final regularData = await rootBundle.load(
-      'assets/fonts/NotoSansSC-Regular.ttf',
-    );
-    final serifData = await rootBundle.load(
-      'assets/fonts/NotoSerifSC-Bold.ttf',
+      'assets/fonts/NotoSansSC-ReportSubset.ttf',
     );
     final regular = pw.Font.ttf(regularData);
-    final serif = pw.Font.ttf(serifData);
+    final serif = regular;
     final theme = pw.ThemeData.withFont(base: regular, bold: serif);
     final document = pw.Document(theme: theme);
     final now = DateTime.now();

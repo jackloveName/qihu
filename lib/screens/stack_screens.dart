@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../app_theme.dart';
 import '../date_utils.dart';
 import '../knowledge_content.dart';
 import '../models.dart';
+import '../services/app_update_service.dart';
 import '../sheets.dart';
 import '../widgets/animal_art.dart';
 import '../widgets/app_widgets.dart';
@@ -336,11 +336,29 @@ class _PetProfileHero extends StatelessWidget {
                 const SizedBox(height: 15),
                 Row(
                   children: [
-                    _ProfileMetric(label: '温度', value: pet.temperature),
+                    LabeledMetric(
+                      label: '温度',
+                      value: pet.temperature,
+                      labelColor: AppColors.ink.withValues(alpha: 0.45),
+                      valueSize: 15,
+                      spacing: 0.7,
+                    ),
                     _verticalRule(),
-                    _ProfileMetric(label: '湿度', value: pet.humidity),
+                    LabeledMetric(
+                      label: '湿度',
+                      value: pet.humidity,
+                      labelColor: AppColors.ink.withValues(alpha: 0.45),
+                      valueSize: 15,
+                      spacing: 0.7,
+                    ),
                     _verticalRule(),
-                    _ProfileMetric(label: '体重', value: pet.weight),
+                    LabeledMetric(
+                      label: '体重',
+                      value: pet.weight,
+                      labelColor: AppColors.ink.withValues(alpha: 0.45),
+                      valueSize: 15,
+                      spacing: 0.7,
+                    ),
                   ],
                 ),
               ],
@@ -400,47 +418,12 @@ class _PetPhotoView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List>(
-      future: XFile(path).readAsBytes(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return fallback;
-        if (!snapshot.hasData) return fallback;
-        return Image.memory(
-          snapshot.data!,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-        );
-      },
-    );
-  }
-}
-
-class _ProfileMetric extends StatelessWidget {
-  const _ProfileMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: AppText.body(
-              9.5,
-              color: AppColors.ink.withValues(alpha: 0.45),
-              weight: FontWeight.w600,
-              spacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(value, style: AppText.number(15)),
-        ],
-      ),
+    return AppLocalImage(
+      path: path,
+      width: double.infinity,
+      height: double.infinity,
+      placeholder: fallback,
+      errorWidget: fallback,
     );
   }
 }
@@ -639,47 +622,27 @@ class _JournalAttachment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List>(
-      future: XFile(path).readAsBytes(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Row(
-            children: [
-              const Icon(
-                Icons.broken_image_outlined,
-                size: 16,
-                color: AppColors.faint,
-              ),
-              const SizedBox(width: 6),
-              Text('照片不可用', style: AppText.body(10.5, color: AppColors.faint)),
-            ],
-          );
-        }
-        if (!snapshot.hasData) {
-          return Container(
-            height: 110,
-            decoration: BoxDecoration(
-              color: AppColors.paper2,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.memory(
-            snapshot.data!,
-            width: double.infinity,
-            height: 140,
-            fit: BoxFit.cover,
+    return AppLocalImage(
+      path: path,
+      width: double.infinity,
+      height: 140,
+      borderRadius: BorderRadius.circular(12),
+      placeholder: const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      errorWidget: Row(
+        children: [
+          const Icon(
+            Icons.broken_image_outlined,
+            size: 16,
+            color: AppColors.faint,
           ),
-        );
-      },
+          const SizedBox(width: 6),
+          Text('照片不可用', style: AppText.body(10.5, color: AppColors.faint)),
+        ],
+      ),
     );
   }
 }
@@ -1296,47 +1259,21 @@ class _ReportGrid extends StatelessWidget {
       children: [
         Row(
           children: [
-            _ReportCell(label: '最近体重', value: pet.weight),
-            _ReportCell(label: '环境温度', value: pet.temperature),
+            LabeledMetric(label: '最近体重', value: pet.weight),
+            LabeledMetric(label: '环境温度', value: pet.temperature),
           ],
         ),
         const SizedBox(height: 14),
         Row(
           children: [
-            _ReportCell(label: '近 7 日任务', value: '${state.tasks.length} 项'),
-            _ReportCell(label: '健康记录', value: '${pet.logs.length} 条'),
+            LabeledMetric(
+              label: '近 7 日任务',
+              value: '${state.taskCountForPetSince(pet.id)} 项',
+            ),
+            LabeledMetric(label: '健康记录', value: '${pet.logs.length} 条'),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _ReportCell extends StatelessWidget {
-  const _ReportCell({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: AppText.body(
-              9.5,
-              color: AppColors.faint,
-              weight: FontWeight.w600,
-              spacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(value, style: AppText.number(14)),
-        ],
-      ),
     );
   }
 }
@@ -1352,6 +1289,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _unit = '公制 · °C / g / cm';
+  bool _checkingUpdate = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1376,6 +1314,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         SpeciesTemplateLibraryScreen(state: widget.state),
                   ),
                 ),
+              ),
+              MenuRow(
+                icon: Icons.system_update_alt_rounded,
+                title: _checkingUpdate ? '正在检查更新…' : '检查更新',
+                subtitle: _checkingUpdate ? '正在连接更新服务' : '手动获取最新版本与更新说明',
+                tone: MenuTone.blue,
+                onTap: _checkingUpdate ? () {} : () => _checkUpdate(context),
               ),
             ],
           ),
@@ -1429,6 +1374,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _checkUpdate(BuildContext context) async {
+    setState(() => _checkingUpdate = true);
+    try {
+      await AppUpdateService().checkAndShow(context, manual: true);
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
   }
 }
 

@@ -5,6 +5,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'data/china_cities.dart';
+
 class PetSpecies {
   const PetSpecies({
     required this.id,
@@ -1122,23 +1124,35 @@ class AppState extends ChangeNotifier {
   AppState._(this._preferences);
 
   static const _storageKey = 'petcare.state.v2';
-  static const _schemaVersion = 3;
-  static const availableCities = [
-    '上海',
-    '北京',
-    '广州',
-    '深圳',
-    '成都',
-    '杭州',
-    '南京',
-    '武汉',
-    '西安',
-    '重庆',
-    '天津',
-    '苏州',
+  static const _schemaVersion = 4;
+  static const _taskRetentionDays = 180;
+  static const guestRetention = Duration(days: 3);
+  static final List<String> availableCities = ChinaCities.all
+      .map((city) => city.value)
+      .toList(growable: false);
+  static const careTagOptions = [
+    '猫猫教',
+    '狗狗派',
+    '双倍毛茸茸',
+    '科学喂养派',
+    '环境布置控',
+    '异宠观察员',
+    '水族造景师',
+    '鸟语爱好者',
   ];
+  static const _legacyCareTagMap = {
+    '猫': '猫猫教',
+    '狗': '狗狗派',
+    '鸟类': '鸟语爱好者',
+    '水族': '水族造景师',
+    '爬宠': '异宠观察员',
+    '异宠': '异宠观察员',
+  };
 
   final SharedPreferences? _preferences;
+  Future<void>? _persistInFlight;
+  bool _persistQueued = false;
+  Object? _lastPersistenceError;
   final List<PetProfile> pets = [];
   final List<PetSpecies> speciesTemplates = [];
   final List<PetRoom> rooms = [];
@@ -1152,6 +1166,8 @@ class AppState extends ChangeNotifier {
   bool signedIn = true;
   bool isGuest = false;
   bool onboardingCompleted = true;
+  bool memberOnboardingCompleted = false;
+  DateTime? guestExpiresAt;
   String nickname = '栖护主人';
   String? avatarPath;
   String city = '上海';
@@ -1159,6 +1175,8 @@ class AppState extends ChangeNotifier {
 
   int get petLimit => isGuest ? 3 : 999;
   bool get canAddPet => pets.length < petLimit;
+  bool get needsMemberOnboarding =>
+      signedIn && !isGuest && !memberOnboardingCompleted;
 
   static Future<AppState> load() async {
     final preferences = await SharedPreferences.getInstance();
@@ -1168,6 +1186,9 @@ class AppState extends ChangeNotifier {
       state._seedReferenceData();
       state.signedIn = false;
       state.onboardingCompleted = false;
+      state.memberOnboardingCompleted = false;
+    } else {
+      state.refreshGuestDataWindow();
     }
     state.ensureOccurrencesThrough();
     await state._persist();
@@ -1176,7 +1197,10 @@ class AppState extends ChangeNotifier {
 
   factory AppState.inMemory({bool seed = true}) {
     final state = AppState._(null);
-    if (seed) state._seed();
+    if (seed) {
+      state._seed();
+      state.memberOnboardingCompleted = true;
+    }
     state.ensureOccurrencesThrough();
     return state;
   }
@@ -1207,6 +1231,20 @@ class AppState extends ChangeNotifier {
   int get healthLogCount =>
       pets.fold(0, (total, pet) => total + pet.logs.length);
 
+  int taskCountForPetSince(String petId, {int days = 7, DateTime? now}) {
+    final current = _dateOnly(now ?? DateTime.now());
+    final start = current.subtract(Duration(days: days - 1));
+    final end = current.add(const Duration(days: 1));
+    return tasks
+        .where(
+          (task) =>
+              task.petId == petId &&
+              !task.date.isBefore(start) &&
+              task.date.isBefore(end),
+        )
+        .length;
+  }
+
   List<String> get speciesCategories {
     final categories = <String>[];
     for (final template in speciesTemplates) {
@@ -1224,8 +1262,13 @@ class AppState extends ChangeNotifier {
       foodSupplies.where((food) => food.needsRestock).toList();
 
   PetProfile petById(String id) {
-    return pets.firstWhere((pet) => pet.id == id, orElse: () => pets.first);
+    final pet = petByIdOrNull(id);
+    if (pet == null) throw StateError('宠物不存在：$id');
+    return pet;
   }
+
+  PetProfile? petByIdOrNull(String id) =>
+      pets.where((pet) => pet.id == id).firstOrNull;
 
   CareTask? taskById(String id) {
     return tasks.where((task) => task.id == id).firstOrNull;
@@ -1427,14 +1470,16 @@ class AppState extends ChangeNotifier {
 
   void ensureOccurrencesThrough({DateTime? now, int daysAhead = 7}) {
     final start = _dateOnly(now ?? DateTime.now());
+    final existing = {
+      for (final task in tasks)
+        if (task.definitionId.isNotEmpty)
+          '${task.definitionId}:${_dateKey(task.date)}',
+    };
     for (var dayOffset = 0; dayOffset <= daysAhead; dayOffset++) {
       final date = start.add(Duration(days: dayOffset));
       for (final definition in taskDefinitions.where((item) => item.enabled)) {
-        final exists = tasks.any(
-          (task) =>
-              task.definitionId == definition.id && _isSameDay(task.date, date),
-        );
-        if (exists) continue;
+        final key = '${definition.id}:${_dateKey(date)}';
+        if (!existing.add(key)) continue;
         tasks.add(
           CareTask(
             id: '${definition.id}-${_dateKey(date)}',
@@ -1451,6 +1496,8 @@ class AppState extends ChangeNotifier {
         );
       }
     }
+    final cutoff = start.subtract(const Duration(days: _taskRetentionDays));
+    tasks.removeWhere((task) => task.date.isBefore(cutoff));
     notifyListeners();
   }
 
@@ -1792,7 +1839,34 @@ class AppState extends ChangeNotifier {
     unawaited(_persist());
   }
 
-  Future<void> flush() => _persist();
+  Future<void> flush() async {
+    await _persist();
+    final error = _lastPersistenceError;
+    if (error != null) {
+      throw StateError('本地数据保存失败：$error');
+    }
+  }
+
+  bool refreshGuestDataWindow({DateTime? now}) {
+    if (!isGuest) return false;
+    final current = now ?? DateTime.now();
+    guestExpiresAt ??= current.add(guestRetention);
+    if (current.isBefore(guestExpiresAt!)) return false;
+    _clearUserData();
+    guestExpiresAt = current.add(guestRetention);
+    _guestDataResetPending = true;
+    notifyListeners();
+    unawaited(_persist());
+    return true;
+  }
+
+  bool _guestDataResetPending = false;
+
+  bool consumeGuestDataReset() {
+    final pending = _guestDataResetPending;
+    _guestDataResetPending = false;
+    return pending;
+  }
 
   void signOut() {
     signedIn = false;
@@ -1801,9 +1875,11 @@ class AppState extends ChangeNotifier {
   }
 
   void startMemberLogin() {
+    if (isGuest) _clearUserData();
     signedIn = true;
     isGuest = false;
-    onboardingCompleted = false;
+    guestExpiresAt = null;
+    onboardingCompleted = memberOnboardingCompleted;
     notifyListeners();
     unawaited(_persist());
   }
@@ -1813,6 +1889,7 @@ class AppState extends ChangeNotifier {
     ensureOccurrencesThrough();
     signedIn = true;
     isGuest = true;
+    guestExpiresAt ??= DateTime.now().add(guestRetention);
     onboardingCompleted = true;
     notifyListeners();
     unawaited(_persist());
@@ -1834,28 +1911,23 @@ class AppState extends ChangeNotifier {
     );
     signedIn = true;
     isGuest = false;
+    memberOnboardingCompleted = true;
     onboardingCompleted = true;
     notifyListeners();
     unawaited(_persist());
   }
 
   void deleteLocalAccount() {
-    pets.clear();
+    _clearUserData();
     speciesTemplates.clear();
     rooms.clear();
-    foodSupplies.clear();
-    taskDefinitions.clear();
-    tasks.clear();
-    handoffGrants.clear();
-    nickname = '栖护主人';
-    avatarPath = null;
-    city = '上海';
-    careTags = [];
     notifications = true;
     hapticFeedback = true;
     signedIn = false;
     isGuest = false;
     onboardingCompleted = false;
+    memberOnboardingCompleted = false;
+    guestExpiresAt = null;
     notifyListeners();
     unawaited(_persist());
   }
@@ -1869,9 +1941,23 @@ class AppState extends ChangeNotifier {
     tasks.clear();
     handoffGrants.clear();
     _seed();
+    memberOnboardingCompleted = true;
+    onboardingCompleted = true;
     ensureOccurrencesThrough();
     notifyListeners();
     unawaited(_persist());
+  }
+
+  void _clearUserData() {
+    pets.clear();
+    foodSupplies.clear();
+    taskDefinitions.clear();
+    tasks.clear();
+    handoffGrants.clear();
+    nickname = '栖护主人';
+    avatarPath = null;
+    city = '上海';
+    careTags = [];
   }
 
   void _seed() {
@@ -1958,13 +2044,22 @@ class AppState extends ChangeNotifier {
       signedIn = data['signedIn'] as bool? ?? true;
       isGuest = data['isGuest'] as bool? ?? false;
       onboardingCompleted = data['onboardingCompleted'] as bool? ?? true;
+      memberOnboardingCompleted =
+          data['memberOnboardingCompleted'] as bool? ??
+          (onboardingCompleted && !isGuest);
+      guestExpiresAt = DateTime.tryParse(
+        data['guestExpiresAt'] as String? ?? '',
+      );
       nickname = data['nickname'] as String? ?? '栖护主人';
       avatarPath = data['avatarPath'] as String?;
       city = normalizeCity(data['city'] as String? ?? '上海');
       careTags = (data['careTags'] as List<dynamic>? ?? [])
           .map((value) => value.toString())
+          .map((tag) => _legacyCareTagMap[tag] ?? tag)
+          .where(careTagOptions.contains)
+          .toSet()
           .toList();
-      return pets.isNotEmpty;
+      return true;
     } on FormatException {
       return false;
     } on TypeError {
@@ -1972,7 +2067,30 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> _persist() async {
+  Future<void> _persist() {
+    final preferences = _preferences;
+    if (preferences == null) return Future.value();
+    _persistQueued = true;
+    return _persistInFlight ??= _drainPersistenceQueue();
+  }
+
+  Future<void> _drainPersistenceQueue() async {
+    try {
+      while (_persistQueued) {
+        _persistQueued = false;
+        try {
+          await _writeSnapshot();
+          _lastPersistenceError = null;
+        } on Object catch (error) {
+          _lastPersistenceError = error;
+        }
+      }
+    } finally {
+      _persistInFlight = null;
+    }
+  }
+
+  Future<void> _writeSnapshot() async {
     final preferences = _preferences;
     if (preferences == null) return;
     final data = {
@@ -1994,6 +2112,8 @@ class AppState extends ChangeNotifier {
       'signedIn': signedIn,
       'isGuest': isGuest,
       'onboardingCompleted': onboardingCompleted,
+      'memberOnboardingCompleted': memberOnboardingCompleted,
+      'guestExpiresAt': guestExpiresAt?.toIso8601String(),
       'nickname': nickname,
       'avatarPath': avatarPath,
       'city': city,
@@ -2007,7 +2127,16 @@ class AppState extends ChangeNotifier {
   }
 
   static String normalizeCity(String value) {
-    return value.split('·').first.trim().replaceFirst(RegExp(r'市$'), '');
+    final matched = ChinaCities.match(value);
+    if (matched != null) return matched.value;
+    final parts = value
+        .split('·')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '';
+    final city = parts.last.replaceFirst(RegExp(r'市$'), '');
+    return parts.length == 1 ? city : '${parts.first} · $city';
   }
 
   static bool _isSameDay(DateTime a, DateTime b) {

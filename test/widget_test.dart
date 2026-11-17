@@ -5,11 +5,15 @@ import 'package:petcare_manager/knowledge_content.dart';
 import 'package:petcare_manager/main.dart';
 import 'package:petcare_manager/models.dart';
 import 'package:petcare_manager/notification_service.dart';
+import 'package:petcare_manager/screens/auth_screens.dart';
+import 'package:petcare_manager/screens/care_management_screens.dart';
+import 'package:petcare_manager/services/app_update_service.dart';
 import 'package:petcare_manager/sheets.dart';
 import 'package:petcare_manager/widgets/app_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 PetCareApp _testApp() => PetCareApp(state: AppState.inMemory());
+void _noop() {}
 
 void main() {
   testWidgets('主导航和内容页可用', (tester) async {
@@ -77,7 +81,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('weather-city-button')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('北京'));
+    await tester.tap(find.byKey(const ValueKey('city-option-北京-北京')));
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(state.city, '北京');
@@ -378,6 +382,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.widgetWithText(FormSection, '4 · 动物昵称'), findsOneWidget);
+    expect(find.byKey(const ValueKey('pet-add-photo')), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>
@@ -467,6 +472,83 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('添加动物'), findsOneWidget);
+  });
+
+  testWidgets('每日照护需求无宠物时显示空状态', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory(seed: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: DailyNeedsScreen(state: state),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('暂无每日照护需求'), findsOneWidget);
+    expect(find.textContaining('请先在“动物”页面添加宠物'), findsOneWidget);
+    expect(find.byIcon(Icons.add_rounded), findsNothing);
+  });
+
+  testWidgets('强制更新保留必须更新提示并使用平台文案', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: AppUpdateDialog(
+            currentVersion: '1.0.0',
+            info: const AppUpdateInfo(
+              version: '2.0.0',
+              downloadUrl: 'https://example.test/app',
+              notes: '重要安全更新',
+              force: true,
+              platform: AppUpdatePlatform.ios,
+            ),
+            onLater: null,
+            onUpdate: _noop,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('必须更新'), findsOneWidget);
+    expect(find.text('iOS 版本必须更新'), findsOneWidget);
+    expect(find.text('打开 App Store'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: AppUpdateDialog(
+            currentVersion: '1.0.0',
+            info: const AppUpdateInfo(
+              version: '2.0.0',
+              downloadUrl: 'https://example.test/app.apk',
+              notes: '安卓应用内更新',
+              force: false,
+              platform: AppUpdatePlatform.android,
+              androidMode: AndroidUpdateMode.inApp,
+            ),
+            onLater: _noop,
+            onUpdate: _noop,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('下载并安装'), findsOneWidget);
+    expect(find.textContaining('安装结束后 App 会自动重启'), findsOneWidget);
   });
 
   test('状态与任务执行记录可以恢复', () async {
@@ -570,7 +652,7 @@ void main() {
     expect(restored.petById('mochi').roomId, room.id);
     expect(restored.nickname, '小王');
     expect(restored.avatarPath, '/tmp/profile-avatar.jpg');
-    expect(restored.city, '杭州');
+    expect(restored.city, '浙江 · 杭州');
     expect(
       restored.foodSupplies
           .firstWhere((item) => item.name == '测试垫材')
@@ -665,7 +747,7 @@ void main() {
 
     await tester.tap(find.text('隐私政策'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.text('协议内容加载失败'), findsOneWidget);
     expect(find.text('重新加载'), findsOneWidget);
   });
@@ -686,18 +768,30 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byKey(const ValueKey('profile-city-field')), findsOneWidget);
+    expect(find.textContaining('头像、昵称、城市和养宠标签之后'), findsNothing);
+    expect(
+      tester
+          .widget<FilterChip>(find.widgetWithText(FilterChip, '猫猫教'))
+          .showCheckmark,
+      isFalse,
+    );
     await tester.tap(find.byKey(const ValueKey('profile-city-field')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('杭州').last);
+    await tester.enterText(
+      find.byKey(const ValueKey('city-search-field')),
+      '洛阳',
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('city-option-河南-洛阳')));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
-    expect(find.text('杭州'), findsOneWidget);
-    await tester.tap(find.text('爬宠'));
+    expect(find.text('河南 · 洛阳'), findsOneWidget);
+    await tester.tap(find.text('异宠观察员'));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('保存修改'));
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(state.city, '杭州');
+    expect(state.city, '河南 · 洛阳');
   });
 
   testWidgets('保存库存记录后列表立即刷新', (tester) async {
@@ -836,7 +930,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final state = AppState.inMemory()..signOut();
+    final state = AppState.inMemory()
+      ..signOut()
+      ..memberOnboardingCompleted = false;
 
     await tester.pumpWidget(PetCareApp(state: state));
     await tester.pump(const Duration(milliseconds: 400));
@@ -848,6 +944,13 @@ void main() {
     );
     expect(find.byKey(const ValueKey('login-privacy-link')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-agreement-link')), findsOneWidget);
+    final checkboxCenter = tester.getCenter(
+      find.byKey(const ValueKey('login-consent-checkbox')),
+    );
+    final copyCenter = tester.getCenter(
+      find.byKey(const ValueKey('login-consent-copy')),
+    );
+    expect((checkboxCenter.dy - copyCenter.dy).abs(), lessThan(1));
     final loginButton = tester.widget<PrimaryButton>(
       find.widgetWithText(PrimaryButton, '登录'),
     );
@@ -869,15 +972,65 @@ void main() {
     expect(find.text('城市'), findsOneWidget);
     expect(find.text('养宠标签'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, '小王');
-    await tester.tap(find.text('猫'));
+    await tester.tap(find.text('猫猫教'));
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('完成设置'));
+    await tester.tap(find.text('保存'));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
     expect(find.text('首页'), findsWidgets);
     expect(state.isGuest, isFalse);
     expect(state.nickname, '小王');
-    expect(state.careTags, contains('猫'));
+    expect(state.careTags, contains('猫猫教'));
+  });
+
+  testWidgets('已完成资料的会员再次登录直接进入首页', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory()..signOut();
+
+    await tester.pumpWidget(PetCareApp(state: state));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.enterText(
+      find.byKey(const ValueKey('login-phone-field')),
+      '13800138000',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('login-password-field')),
+      '123456',
+    );
+    await tester.tap(find.byKey(const ValueKey('login-consent-checkbox')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('登录'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+
+    expect(find.text('认识一下你'), findsNothing);
+    expect(find.text('首页'), findsWidgets);
+    expect(state.memberOnboardingCompleted, isTrue);
+  });
+
+  testWidgets('登录页协议仅使用后台配置并在缺失时显示错误', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory()..signOut();
+
+    await tester.pumpWidget(PetCareApp(state: state));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const ValueKey('login-privacy-link')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.text('协议内容加载失败'), findsOneWidget);
+    expect(find.text('重新加载'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const ValueKey('login-agreement-link')));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.text('协议内容加载失败'), findsOneWidget);
+    expect(find.text('重新加载'), findsOneWidget);
   });
 
   testWidgets('手机号验证码可以登录', (tester) async {
@@ -885,7 +1038,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final state = AppState.inMemory()..signOut();
+    final state = AppState.inMemory()
+      ..signOut()
+      ..memberOnboardingCompleted = false;
 
     await tester.pumpWidget(PetCareApp(state: state));
     await tester.pump(const Duration(milliseconds: 400));
@@ -912,6 +1067,91 @@ void main() {
     expect(find.text('认识一下你'), findsOneWidget);
     expect(state.signedIn, isTrue);
     await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('游客模式无需同意协议即可进入', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory(seed: false)..signOut();
+
+    await tester.pumpWidget(PetCareApp(state: state));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byKey(const ValueKey('privacy-consent-dialog')), findsNothing);
+    final guestButton = tester.widget<TextButton>(
+      find.ancestor(of: find.text('游客模式'), matching: find.byType(TextButton)),
+    );
+    expect(guestButton.onPressed, isNotNull);
+
+    await tester.tap(find.text('游客模式'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(state.isGuest, isTrue);
+    expect(state.signedIn, isTrue);
+    expect(find.text('首页'), findsWidgets);
+    expect(find.byKey(const ValueKey('guest-guide-home')), findsOneWidget);
+    expect(find.byKey(const ValueKey('first-pet-home')), findsOneWidget);
+    expect(find.text('今天的照护已完成'), findsNothing);
+
+    await tester.tap(find.text('动物').last);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('guest-guide-animals')), findsOneWidget);
+    expect(find.byKey(const ValueKey('first-pet-animals')), findsOneWidget);
+
+    await tester.tap(find.text('任务'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('guest-guide-tasks')), findsOneWidget);
+    expect(find.byKey(const ValueKey('first-pet-tasks')), findsOneWidget);
+
+    await tester.tap(find.text('我的'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('guest-guide-mine')), findsOneWidget);
+
+    await tester.tap(find.text('首页'));
+    await tester.pump(const Duration(milliseconds: 300));
+    final homeLogin = find.descendant(
+      of: find.byKey(const ValueKey('guest-guide-home')),
+      matching: find.text('去登录'),
+    );
+    await tester.ensureVisible(homeLogin);
+    await tester.tap(homeLogin);
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.text('登录栖护'), findsOneWidget);
+  });
+
+  testWidgets('会员协议升级后需要重新确认', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory();
+    var accepted = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: MemberConsentScreen(
+          state: state,
+          onAccepted: () => accepted = true,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('隐私政策与注册协议已更新'), findsOneWidget);
+    expect(
+      tester
+          .widget<PrimaryButton>(find.widgetWithText(PrimaryButton, '同意并继续'))
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.byKey(const ValueKey('login-consent-checkbox')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('同意并继续'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+
+    expect(accepted, isTrue);
   });
 
   test('游客模式从空空间开始且最多添加 3 只宠物', () async {
@@ -943,6 +1183,30 @@ void main() {
     );
   });
 
+  test('游客数据到期后自动清空并开启新的三天窗口', () {
+    final state = AppState.inMemory(seed: false)..enterGuestMode();
+    state.addPet(species: PetSpecies.gecko, name: '临时动物', environment: '测试环境');
+    state.guestExpiresAt = DateTime.now().subtract(const Duration(minutes: 1));
+
+    expect(state.refreshGuestDataWindow(), isTrue);
+    expect(state.pets, isEmpty);
+    expect(state.consumeGuestDataReset(), isTrue);
+    expect(state.guestExpiresAt!.isAfter(DateTime.now()), isTrue);
+  });
+
+  test('登录会员会清空游客本地数据', () {
+    final state = AppState.inMemory(seed: false)..enterGuestMode();
+    state.addPet(species: PetSpecies.gecko, name: '游客动物', environment: '测试环境');
+
+    state.startMemberLogin();
+
+    expect(state.isGuest, isFalse);
+    expect(state.pets, isEmpty);
+    expect(state.taskDefinitions, isEmpty);
+    expect(state.tasks, isEmpty);
+    expect(state.guestExpiresAt, isNull);
+  });
+
   test('提醒快照会随健康复看时间变化', () {
     final state = AppState.inMemory();
     final before = PetNotificationService.snapshot(state);
@@ -956,5 +1220,83 @@ void main() {
     final after = PetNotificationService.snapshot(state);
     expect(after, isNot(before));
     expect(after, contains('需要复看'));
+  });
+
+  test('高频修改后持久化保留最后一次状态', () async {
+    SharedPreferences.setMockInitialValues({});
+    final state = await AppState.load();
+    for (var index = 0; index < 40; index++) {
+      state.updateNickname('主人$index');
+    }
+    await state.flush();
+
+    final restored = await AppState.load();
+    expect(restored.nickname, '主人39');
+  });
+
+  test('iOS 通知计划限制数量并保留健康提醒', () {
+    final state = AppState.inMemory(seed: false);
+    for (var index = 0; index < 30; index++) {
+      state.addPet(
+        species: PetSpecies.gecko,
+        name: '测试宠物$index',
+        environment: '测试环境',
+      );
+    }
+    state.addHealthLog(
+      petId: state.pets.first.id,
+      tag: '需要复看',
+      description: '观察恢复情况',
+      followUpAt: DateTime.now().add(const Duration(days: 2)),
+    );
+
+    final reminders = PetNotificationService.buildPlan(state);
+
+    expect(
+      reminders.length,
+      lessThanOrEqualTo(PetNotificationService.maxIosNotifications),
+    );
+    expect(
+      reminders.map((item) => item.id).toSet(),
+      hasLength(reminders.length),
+    );
+    expect(
+      reminders.any((item) => item.kind == PetReminderKind.health),
+      isTrue,
+    );
+    expect(
+      reminders.every((item) => item.when.isAfter(DateTime.now())),
+      isTrue,
+    );
+  });
+
+  test('任务统计限定当前宠物和时间范围', () {
+    final state = AppState.inMemory();
+    final pet = state.pets.first;
+    final today = DateTime.now();
+    final start = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(const Duration(days: 6));
+    final expected = state.tasks
+        .where(
+          (task) =>
+              task.petId == pet.id &&
+              !task.date.isBefore(start) &&
+              task.date.isBefore(
+                DateTime(today.year, today.month, today.day + 1),
+              ),
+        )
+        .length;
+
+    expect(state.taskCountForPetSince(pet.id), expected);
+    expect(state.taskCountForPetSince('missing-pet'), 0);
+  });
+
+  test('不存在的宠物 ID 不再回退为第一只宠物', () {
+    final state = AppState.inMemory();
+    expect(state.petByIdOrNull('missing-pet'), isNull);
+    expect(() => state.petById('missing-pet'), throwsStateError);
   });
 }

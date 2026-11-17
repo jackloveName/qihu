@@ -65,6 +65,7 @@ class WeatherService {
   static DateTime? _cacheTime;
   static Future<WeatherSnapshot?>? _inFlight;
   static String? _inFlightCity;
+  static final Map<String, (double, double)> _coordinateCache = {};
 
   static Future<WeatherSnapshot?> fetchForCity(String city) {
     if (Platform.environment.containsKey('FLUTTER_TEST')) {
@@ -90,8 +91,10 @@ class WeatherService {
   }
 
   static Future<WeatherSnapshot?> _fetch(String city) async {
-    final name = city.split('·').first.trim().replaceFirst(RegExp(r'市$'), '');
-    final coordinate = _knownCities[name];
+    final parts = city.split('·').map((item) => item.trim()).toList();
+    final name = parts.last.replaceFirst(RegExp(r'市$'), '');
+    final province = parts.length > 1 ? parts.first : null;
+    final coordinate = await _resolveCoordinate(name, province: province);
     if (coordinate == null) return null;
     try {
       final response = await http
@@ -173,6 +176,72 @@ class WeatherService {
     } on Object {
       return null;
     }
+  }
+
+  static Future<(double, double)?> _resolveCoordinate(
+    String name, {
+    String? province,
+  }) async {
+    final known = _knownCities[name];
+    if (known != null) return known;
+    final cacheKey = '${province ?? ''}:$name';
+    final cached = _coordinateCache[cacheKey];
+    if (cached != null) return cached;
+    final hasSpecialSuffix =
+        name.endsWith('地区') || name.endsWith('自治州') || name.endsWith('盟');
+    final candidates = hasSpecialSuffix ? [name] : ['$name市', name];
+    for (final candidate in candidates) {
+      try {
+        final response = await http
+            .get(
+              Uri.https('geocoding-api.open-meteo.com', '/v1/search', {
+                'name': candidate,
+                'count': '10',
+                'language': 'zh',
+                'format': 'json',
+                'countryCode': 'CN',
+              }),
+            )
+            .timeout(const Duration(seconds: 8));
+        if (response.statusCode != 200) continue;
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final rawResults = data['results'] as List<dynamic>?;
+        if (rawResults == null || rawResults.isEmpty) continue;
+        final results = rawResults
+            .whereType<Map>()
+            .map((item) => item.map((key, value) => MapEntry('$key', value)))
+            .toList();
+        final matching = province == null
+            ? results
+            : results.where((item) {
+                final admin = item['admin1']?.toString() ?? '';
+                return admin.contains(province) || province.contains(admin);
+              }).toList();
+        if (matching.isEmpty) continue;
+        matching.sort((a, b) {
+          final aAdmin = (a['feature_code']?.toString() ?? '').startsWith(
+            'PPLA',
+          );
+          final bAdmin = (b['feature_code']?.toString() ?? '').startsWith(
+            'PPLA',
+          );
+          if (aAdmin != bAdmin) return aAdmin ? -1 : 1;
+          return ((b['population'] as num?) ?? 0).compareTo(
+            (a['population'] as num?) ?? 0,
+          );
+        });
+        final first = matching.first;
+        final latitude = (first['latitude'] as num?)?.toDouble();
+        final longitude = (first['longitude'] as num?)?.toDouble();
+        if (latitude == null || longitude == null) continue;
+        final coordinate = (latitude, longitude);
+        _coordinateCache[cacheKey] = coordinate;
+        return coordinate;
+      } on Object {
+        continue;
+      }
+    }
+    return null;
   }
 
   static bool _isRain(String symbolCode) {

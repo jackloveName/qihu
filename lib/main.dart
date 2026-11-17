@@ -10,9 +10,10 @@ import 'screens/auth_screens.dart';
 import 'screens/care_management_screens.dart';
 import 'screens/create_screens.dart';
 import 'screens/main_screens.dart';
-import 'screens/privacy_gate.dart';
 import 'screens/stack_screens.dart';
 import 'services/app_update_service.dart';
+import 'services/local_image_store.dart';
+import 'storage/privacy_consent_store.dart';
 import 'sheets.dart';
 import 'widgets/app_widgets.dart';
 
@@ -20,6 +21,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PetNotificationService.initialize();
   final state = await AppState.load();
+  if (state.consumeGuestDataReset()) {
+    await LocalImageStore.deleteAll();
+  }
   CareReminderObserver(state);
   unawaited(PetNotificationService.syncAll(state, ''));
   runApp(PetCareApp(state: state));
@@ -42,7 +46,7 @@ class PetCareApp extends StatelessWidget {
       builder: (context, child) {
         return _PreviewFrame(child: child ?? const SizedBox.shrink());
       },
-      home: PrivacyGate(child: AppShell(state: state)),
+      home: AppShell(state: state),
     );
   }
 }
@@ -109,24 +113,86 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _tab = 0;
   bool _updateChecked = false;
+  bool _notificationPermissionRequested = false;
+  bool _memberConsentChecked = false;
+  bool _memberConsentCurrent = true;
+  late bool _lastSignedIn = widget.state.signedIn;
+  late bool _lastNeedsOnboarding = widget.state.needsMemberOnboarding;
+  Timer? _guestExpiryTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.state.addListener(_handleNavigationState);
+    _scheduleGuestExpiry();
+    _loadMemberConsent();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.state.removeListener(_handleNavigationState);
+    _guestExpiryTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      final expired = widget.state.refreshGuestDataWindow();
+      if (expired) unawaited(LocalImageStore.deleteAll());
+      _scheduleGuestExpiry();
       widget.state.ensureOccurrencesThrough();
     }
+  }
+
+  void _handleNavigationState() {
+    final signedInNow = widget.state.signedIn;
+    final needsOnboardingNow = widget.state.needsMemberOnboarding;
+    final shouldReturnHome =
+        (!_lastSignedIn && signedInNow) ||
+        (_lastNeedsOnboarding && !needsOnboardingNow && signedInNow);
+    _lastSignedIn = signedInNow;
+    _lastNeedsOnboarding = needsOnboardingNow;
+    _scheduleGuestExpiry();
+    if (shouldReturnHome && mounted && _tab != 0) {
+      setState(() => _tab = 0);
+    }
+  }
+
+  void _scheduleGuestExpiry() {
+    _guestExpiryTimer?.cancel();
+    _guestExpiryTimer = null;
+    final expiresAt = widget.state.guestExpiresAt;
+    if (!widget.state.isGuest || expiresAt == null) return;
+    final remaining = expiresAt.difference(DateTime.now());
+    _guestExpiryTimer = Timer(
+      remaining.isNegative ? Duration.zero : remaining,
+      () async {
+        final expired = widget.state.refreshGuestDataWindow();
+        if (expired) {
+          await LocalImageStore.deleteAll();
+          if (mounted) _scheduleGuestExpiry();
+        }
+      },
+    );
+  }
+
+  Future<void> _loadMemberConsent() async {
+    var current = true;
+    if (widget.state.signedIn && !widget.state.isGuest) {
+      try {
+        current = await PrivacyConsentStore.hasCurrentConsent();
+      } on Object {
+        current = false;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _memberConsentCurrent = current;
+      _memberConsentChecked = true;
+    });
   }
 
   @override
@@ -137,8 +203,30 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         if (!widget.state.signedIn) {
           return LocalLoginScreen(state: widget.state);
         }
-        if (!widget.state.onboardingCompleted) {
+        if (!_memberConsentChecked) {
+          return const Scaffold(
+            backgroundColor: AppColors.canvas,
+            body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        if (!widget.state.isGuest && !_memberConsentCurrent) {
+          return MemberConsentScreen(
+            state: widget.state,
+            onAccepted: () => setState(() => _memberConsentCurrent = true),
+          );
+        }
+        if (widget.state.needsMemberOnboarding) {
           return OnboardingScreen(state: widget.state);
+        }
+        if (widget.state.notifications && !_notificationPermissionRequested) {
+          _notificationPermissionRequested = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            if (!mounted) return;
+            final granted = await PetNotificationService.requestPermission();
+            if (granted && mounted) {
+              await PetNotificationService.syncAll(widget.state, '');
+            }
+          });
         }
         if (!_updateChecked) {
           _updateChecked = true;
@@ -176,13 +264,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         state: widget.state,
                         onOpenTask: _openTask,
                         onOpenKnowledge: _openKnowledge,
+                        onAddPet: _openAddPet,
                       ),
                       AnimalsScreen(
                         state: widget.state,
                         onOpenPet: _openPet,
                         onAddPet: _openAddPet,
                       ),
-                      TasksScreen(state: widget.state, onOpenTask: _openTask),
+                      TasksScreen(
+                        state: widget.state,
+                        onOpenTask: _openTask,
+                        onAddPet: _openAddPet,
+                      ),
                       MineScreen(
                         state: widget.state,
                         onOpenDailyNeeds: _openDailyNeeds,

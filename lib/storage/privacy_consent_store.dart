@@ -15,6 +15,7 @@ abstract final class PrivacyConsentStore {
   }
 
   static Future<void> accept() async {
+    if (_testMode) return;
     final preferences = await SharedPreferences.getInstance();
     await preferences.setInt(_key, currentVersion);
   }

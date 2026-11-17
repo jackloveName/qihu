@@ -1,13 +1,15 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../app_theme.dart';
 import '../models.dart';
 import 'animal_art.dart';
+import 'layout_components.dart';
+
+export 'layout_components.dart';
+export 'media_components.dart';
 
 class AppBackground extends StatelessWidget {
   const AppBackground({super.key, required this.child});
@@ -175,62 +177,6 @@ class RoundIconButton extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class StoredProfileAvatar extends StatelessWidget {
-  const StoredProfileAvatar({
-    super.key,
-    required this.path,
-    required this.size,
-    this.radius,
-  });
-
-  final String? path;
-  final double size;
-  final double? radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final avatar = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFF4E9CF), Color(0xFFC7A665)],
-        ),
-        borderRadius: BorderRadius.circular(radius ?? size * 0.33),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: path == null || path!.isEmpty
-          ? Icon(
-              Icons.person_rounded,
-              size: size * 0.52,
-              color: AppColors.brand,
-            )
-          : FutureBuilder<Uint8List>(
-              future: XFile(path!).readAsBytes(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return Icon(
-                    Icons.person_rounded,
-                    size: size * 0.52,
-                    color: AppColors.brand,
-                  );
-                }
-                return Image.memory(
-                  snapshot.data!,
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                );
-              },
-            ),
-    );
-    return avatar;
   }
 }
 
@@ -927,11 +873,11 @@ class AnimalCard extends StatelessWidget {
               const SizedBox(height: 13),
               Row(
                 children: [
-                  _Metric(label: '温度', value: pet.temperature),
+                  LabeledMetric(label: '温度', value: pet.temperature),
                   _divider(),
-                  _Metric(label: '湿度', value: pet.humidity),
+                  LabeledMetric(label: '湿度', value: pet.humidity),
                   _divider(),
-                  _Metric(label: '体重', value: pet.weight),
+                  LabeledMetric(label: '体重', value: pet.weight),
                 ],
               ),
             ],
@@ -947,35 +893,6 @@ class AnimalCard extends StatelessWidget {
       height: 30,
       margin: const EdgeInsets.symmetric(horizontal: 11),
       color: AppColors.hair,
-    );
-  }
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: AppText.body(
-              9.5,
-              color: AppColors.faint,
-              weight: FontWeight.w600,
-              spacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(value, style: AppText.number(14)),
-        ],
-      ),
     );
   }
 }
@@ -1924,6 +1841,73 @@ class EmptyState extends StatelessWidget {
             message,
             textAlign: TextAlign.center,
             style: AppText.body(11.5, color: AppColors.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class FirstPetPrompt extends StatelessWidget {
+  const FirstPetPrompt({
+    super.key,
+    required this.onAddPet,
+    this.guestMode = false,
+  });
+
+  final VoidCallback onAddPet;
+  final bool guestMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.paper, AppColors.brandWash],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.brandLine),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1415211C),
+            blurRadius: 26,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              gradient: PetSpecies.gecko.gradient,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+            ),
+            alignment: Alignment.center,
+            child: const AnimalArt(species: PetSpecies.gecko, size: 56),
+          ),
+          const SizedBox(height: 15),
+          Text('先认识你的第一位伙伴', style: AppText.display(19)),
+          const SizedBox(height: 6),
+          Text(
+            guestMode
+                ? '游客最多可添加 3 只动物，数据会在 3 天后清理。'
+                : '添加动物档案后，首页和任务会自动生成适合它的照护计划。',
+            textAlign: TextAlign.center,
+            style: AppText.body(11, color: AppColors.muted, height: 1.6),
+          ),
+          const SizedBox(height: 16),
+          PrimaryButton(
+            label: '添加第一只动物',
+            icon: Icons.add_rounded,
+            expand: false,
+            onPressed: onAddPet,
           ),
         ],
       ),

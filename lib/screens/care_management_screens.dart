@@ -472,124 +472,142 @@ class DailyNeedsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visiblePets = state.pets
+        .where((pet) => petId == null || pet.id == petId)
+        .toList();
+    final selectedPet = petId == null ? null : state.petByIdOrNull(petId!);
     return _ManagementPage(
-      title: petId == null ? '每日照护需求' : '${state.petById(petId!).name}的每日需求',
+      title: petId == null ? '每日照护需求' : '${selectedPet?.name ?? '当前宠物'}的每日需求',
       subtitle: '创建一次 · 每天自动生成',
-      action: RoundIconButton(
-        icon: Icons.add_rounded,
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => AddTaskScreen(
-              state: state,
-              initialPetId: petId,
-              initialRecurring: true,
-            ),
-          ),
-        ),
-      ),
-      children: [
-        for (final pet in state.pets.where(
-          (pet) => petId == null || pet.id == petId,
-        )) ...[
-          Padding(
-            padding: const EdgeInsets.only(top: 5, bottom: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    gradient: pet.species.gradient,
-                    borderRadius: BorderRadius.circular(10),
+      action: visiblePets.isEmpty
+          ? const SizedBox.shrink()
+          : RoundIconButton(
+              icon: Icons.add_rounded,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => AddTaskScreen(
+                    state: state,
+                    initialPetId: petId,
+                    initialRecurring: true,
                   ),
-                  alignment: Alignment.center,
-                  child: AnimalArt(species: pet.species, size: 22),
                 ),
-                const SizedBox(width: 9),
-                Text(pet.name, style: AppText.display(16)),
-                const SizedBox(width: 7),
-                Text(
-                  pet.species.label,
-                  style: AppText.body(9.5, color: AppColors.muted),
-                ),
-              ],
-            ),
-          ),
-          if (state.taskDefinitions
-              .where((item) => item.petId == pet.id)
-              .isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: EmptyState(
-                title: '还没有每日需求',
-                message: '可以为这只宠物设置喂食、清洁、环境检查等每日固定需求。',
               ),
-            )
-          else
-            for (final definition in state.taskDefinitions.where(
-              (item) => item.petId == pet.id,
-            ))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: PaperCard(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
+            ),
+      children: visiblePets.isEmpty
+          ? const [
+              EmptyState(
+                title: '暂无每日照护需求',
+                message: '每日照护需求需要关联宠物档案，请先在“动物”页面添加宠物。',
+              ),
+            ]
+          : [
+              for (final pet in visiblePets) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 5, bottom: 8),
                   child: Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 34,
+                        height: 34,
                         decoration: BoxDecoration(
-                          color: definition.enabled
-                              ? AppColors.brandWash
-                              : AppColors.paper2,
-                          borderRadius: BorderRadius.circular(11),
+                          gradient: pet.species.gradient,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(
-                          Icons.repeat_rounded,
-                          size: 18,
-                          color: definition.enabled
-                              ? AppColors.brand
-                              : AppColors.faint,
-                        ),
+                        alignment: Alignment.center,
+                        child: AnimalArt(species: pet.species, size: 22),
                       ),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              definition.title,
-                              style: AppText.body(13, weight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${definition.defaultTime} · ${definition.type} · 每天',
-                              style: AppText.body(9.5, color: AppColors.muted),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: definition.enabled,
-                        onChanged: (value) => state.setTaskDefinitionEnabled(
-                          definition.id,
-                          value,
-                        ),
-                        activeThumbColor: Colors.white,
-                        activeTrackColor: AppColors.brand,
-                        inactiveThumbColor: Colors.white,
-                        inactiveTrackColor: AppColors.paper3,
+                      const SizedBox(width: 9),
+                      Text(pet.name, style: AppText.display(16)),
+                      const SizedBox(width: 7),
+                      Text(
+                        pet.species.label,
+                        style: AppText.body(9.5, color: AppColors.muted),
                       ),
                     ],
                   ),
                 ),
-              ),
-        ],
-      ],
+                if (state.taskDefinitions
+                    .where((item) => item.petId == pet.id)
+                    .isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: EmptyState(
+                      title: '还没有每日需求',
+                      message: '可以为这只宠物设置喂食、清洁、环境检查等每日固定需求。',
+                    ),
+                  )
+                else
+                  for (final definition in state.taskDefinitions.where(
+                    (item) => item.petId == pet.id,
+                  ))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: PaperCard(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 11,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: definition.enabled
+                                    ? AppColors.brandWash
+                                    : AppColors.paper2,
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              child: Icon(
+                                Icons.repeat_rounded,
+                                size: 18,
+                                color: definition.enabled
+                                    ? AppColors.brand
+                                    : AppColors.faint,
+                              ),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    definition.title,
+                                    style: AppText.body(
+                                      13,
+                                      weight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${definition.defaultTime} · ${definition.type} · 每天',
+                                    style: AppText.body(
+                                      9.5,
+                                      color: AppColors.muted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: definition.enabled,
+                              onChanged: (value) =>
+                                  state.setTaskDefinitionEnabled(
+                                    definition.id,
+                                    value,
+                                  ),
+                              activeThumbColor: Colors.white,
+                              activeTrackColor: AppColors.brand,
+                              inactiveThumbColor: Colors.white,
+                              inactiveTrackColor: AppColors.paper3,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              ],
+            ],
     );
   }
 }
