@@ -7,12 +7,10 @@ import '../data/china_cities.dart';
 import '../date_utils.dart';
 import '../knowledge_content.dart';
 import '../models.dart';
-import '../services/api/api_settings.dart';
 import '../services/auth_service.dart';
 import '../services/local_image_store.dart';
 import '../storage/session_token_store.dart';
 import '../weather_service.dart';
-import 'agreement_screen.dart';
 import 'auth_screens.dart';
 import '../widgets/animal_art.dart';
 import '../widgets/app_widgets.dart';
@@ -129,7 +127,6 @@ class TodayScreen extends StatelessWidget {
                       task: task,
                       pet: state.petById(task.petId),
                       onOpen: () => onOpenTask(task),
-                      onToggle: () => _toggleTask(context, task),
                     ),
                   );
                 },
@@ -148,20 +145,6 @@ class TodayScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  void _toggleTask(BuildContext context, CareTask task) {
-    final wasDone = task.status == TaskStatus.done;
-    state.toggleTask(task.id);
-    if (wasDone) {
-      showAppMessage(context, '已恢复为待完成');
-    } else {
-      showUndoableTaskMessage(
-        context,
-        '任务已完成，已记录执行时间',
-        onUndo: () => state.reopenTask(task.id),
-      );
-    }
   }
 }
 
@@ -2080,7 +2063,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   ),
                 ),
               ),
-            const SliverToBoxAdapter(child: SizedBox(height: 28)),
+            const SliverToBoxAdapter(child: SizedBox(height: 92)),
           ],
         ),
       ),
@@ -2395,7 +2378,6 @@ class _TimelineGroup extends StatelessWidget {
           child: TaskTile(
             task: task,
             pet: state.petById(task.petId),
-            onToggle: () => onToggle(task),
             onOpen: () => onOpen(task),
           ),
         ),
@@ -2743,18 +2725,22 @@ class MineScreen extends StatelessWidget {
     required this.onOpenDailyNeeds,
     required this.onOpenRooms,
     required this.onOpenFoodInventory,
+    required this.onOpenTemplates,
     required this.onOpenKnowledge,
     required this.onOpenTools,
     required this.onOpenSettings,
+    required this.onOpenAgreements,
   });
 
   final AppState state;
   final VoidCallback onOpenDailyNeeds;
   final VoidCallback onOpenRooms;
   final VoidCallback onOpenFoodInventory;
+  final VoidCallback onOpenTemplates;
   final VoidCallback onOpenKnowledge;
   final VoidCallback onOpenTools;
   final VoidCallback onOpenSettings;
+  final VoidCallback onOpenAgreements;
 
   @override
   Widget build(BuildContext context) {
@@ -2794,7 +2780,7 @@ class MineScreen extends StatelessWidget {
               children: [
                 MenuRow(
                   icon: Icons.repeat_rounded,
-                  title: '每日照护需求',
+                  title: '养护任务',
                   tone: MenuTone.brand,
                   onTap: onOpenDailyNeeds,
                 ),
@@ -2811,6 +2797,12 @@ class MineScreen extends StatelessWidget {
                       ? MenuTone.amber
                       : MenuTone.rose,
                   onTap: onOpenFoodInventory,
+                ),
+                MenuRow(
+                  icon: Icons.category_outlined,
+                  title: '宠物模板库',
+                  tone: MenuTone.amber,
+                  onTap: onOpenTemplates,
                 ),
               ],
             ),
@@ -2848,31 +2840,9 @@ class MineScreen extends StatelessWidget {
                 ),
                 MenuRow(
                   icon: Icons.privacy_tip_outlined,
-                  title: '隐私政策',
+                  title: '隐私政策与注册协议',
                   tone: MenuTone.brand,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const AgreementScreen(
-                        protocolKey: ApiSettings.privacyProtocolKey,
-                        title: '隐私政策',
-                      ),
-                    ),
-                  ),
-                ),
-                MenuRow(
-                  icon: Icons.gavel_outlined,
-                  title: '平台注册协议',
-                  tone: MenuTone.amber,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const AgreementScreen(
-                        protocolKey: ApiSettings.registerProtocolKey,
-                        title: '平台注册协议',
-                      ),
-                    ),
-                  ),
+                  onTap: onOpenAgreements,
                 ),
               ],
             ),

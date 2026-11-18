@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_theme.dart';
 import 'models.dart';
 import 'notification_service.dart';
+import 'screens/agreement_screen.dart';
 import 'screens/auth_screens.dart';
 import 'screens/care_management_screens.dart';
 import 'screens/create_screens.dart';
@@ -346,9 +347,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         onOpenDailyNeeds: _openDailyNeeds,
                         onOpenRooms: _openRooms,
                         onOpenFoodInventory: _openFoodInventory,
+                        onOpenTemplates: _openTemplates,
                         onOpenKnowledge: _openKnowledge,
                         onOpenTools: _openTools,
                         onOpenSettings: _openSettings,
+                        onOpenAgreements: _openAgreements,
                       ),
                     ],
                   ),
@@ -414,6 +417,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void _openRooms() => _openStack(RoomsScreen(state: widget.state));
   void _openFoodInventory() =>
       _openStack(FoodInventoryScreen(state: widget.state));
+  void _openTemplates() =>
+      _openStack(SpeciesTemplateLibraryScreen(state: widget.state));
+  void _openAgreements() => _openStack(const AgreementsScreen());
   void _openKnowledge() => _openStack(const KnowledgeScreen());
   void _openTools() => _openStack(const ToolsScreen());
   void _openSettings() => _openStack(SettingsScreen(state: widget.state));

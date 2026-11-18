@@ -92,12 +92,13 @@ class _SpeciesTemplateLibraryScreenState
                     setState(() => _revealedTemplateId = null);
                   }
                 },
-                onOpen: () => showAppSheet(
-                  context: context,
-                  child: SpeciesTemplateDetailSheet(
-                    template: template,
-                    onEdit: () => _openEditTemplate(template),
-                    onDelete: () => _confirmDeleteTemplate(template),
+                onOpen: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => SpeciesTemplateDetailScreen(
+                      state: widget.state,
+                      templateId: template.id,
+                    ),
                   ),
                 ),
                 onDelete: () => _confirmDeleteTemplate(template),
@@ -139,14 +140,6 @@ class _SpeciesTemplateLibraryScreenState
     await showAppSheet(
       context: context,
       child: AddSpeciesTemplateSheet(state: widget.state),
-    );
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _openEditTemplate(PetSpecies template) async {
-    await showAppSheet(
-      context: context,
-      child: AddSpeciesTemplateSheet(state: widget.state, existing: template),
     );
     if (mounted) setState(() {});
   }
@@ -343,185 +336,429 @@ class _TemplateSwipeTileState extends State<_TemplateSwipeTile> {
   }
 }
 
-class SpeciesTemplateDetailSheet extends StatelessWidget {
-  const SpeciesTemplateDetailSheet({
+class SpeciesTemplateDetailScreen extends StatefulWidget {
+  const SpeciesTemplateDetailScreen({
     super.key,
+    required this.state,
+    required this.templateId,
+  });
+
+  final AppState state;
+  final String templateId;
+
+  @override
+  State<SpeciesTemplateDetailScreen> createState() =>
+      _SpeciesTemplateDetailScreenState();
+}
+
+class _SpeciesTemplateDetailScreenState
+    extends State<SpeciesTemplateDetailScreen> {
+  PetSpecies? get template => widget.state.speciesTemplates
+      .where((item) => item.id == widget.templateId)
+      .firstOrNull;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.state.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    widget.state.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = template;
+    if (current == null) {
+      return Scaffold(
+        backgroundColor: AppColors.canvas,
+        body: const SafeArea(
+          child: EmptyState(title: '模板不存在', message: '该模板可能已经被删除。'),
+        ),
+      );
+    }
+    return _ManagementPage(
+      title: '模板详情',
+      subtitle: current.category,
+      action: const SizedBox.shrink(),
+      children: [
+        _TemplateDetailBody(
+          template: current,
+          onEdit: _editTemplate,
+          onDelete: _deleteTemplate,
+          onAddTask: () => _editFixedTask(),
+          onEditTask: (index) => _editFixedTask(index: index),
+          onDeleteTask: _deleteFixedTask,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _editTemplate() async {
+    final current = template;
+    if (current == null) return;
+    await showAppSheet(
+      context: context,
+      child: AddSpeciesTemplateSheet(state: widget.state, existing: current),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _deleteTemplate() async {
+    final current = template;
+    if (current == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除模板？'),
+        content: Text('删除“${current.label}”后将无法从模板库选择，但已创建的动物档案不会受影响。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final deleted = widget.state.deleteSpeciesTemplate(current.id);
+    if (!mounted) return;
+    if (deleted) {
+      Navigator.pop(context);
+    } else {
+      showAppMessage(context, '至少需要保留一个动物模板');
+    }
+  }
+
+  Future<void> _editFixedTask({int? index}) async {
+    final current = template;
+    if (current == null) return;
+    final tasks = starterCareTasksFor(current);
+    final result = await showModalBottomSheet<StarterCareTask>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          _StarterTaskEditorSheet(initial: index == null ? null : tasks[index]),
+    );
+    if (result == null || !mounted) return;
+    final nextTasks = List<StarterCareTask>.from(tasks);
+    if (index == null) {
+      nextTasks.add(result);
+    } else {
+      nextTasks[index] = result;
+    }
+    _saveFixedTasks(nextTasks);
+  }
+
+  Future<void> _deleteFixedTask(int index) async {
+    final current = template;
+    if (current == null) return;
+    final tasks = starterCareTasksFor(current);
+    if (index < 0 || index >= tasks.length) return;
+    final task = tasks[index];
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除固定任务？'),
+        content: Text('删除“${task.title}”后，新动物不会再自动生成这项任务。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final nextTasks = List<StarterCareTask>.from(tasks)..removeAt(index);
+    _saveFixedTasks(nextTasks);
+  }
+
+  void _saveFixedTasks(List<StarterCareTask> tasks) {
+    final current = template;
+    if (current == null) return;
+    widget.state.updateSpeciesTemplate(
+      existing: current,
+      label: current.label,
+      category: current.category,
+      artStyle: current.artStyle,
+      background: current.background,
+      backgroundEnd: current.backgroundEnd,
+      ink: current.ink,
+      note: current.note,
+      starterTasks: tasks,
+    );
+    setState(() {});
+  }
+}
+
+class _TemplateDetailBody extends StatelessWidget {
+  const _TemplateDetailBody({
     required this.template,
     required this.onEdit,
     required this.onDelete,
+    required this.onAddTask,
+    required this.onEditTask,
+    required this.onDeleteTask,
   });
 
   final PetSpecies template;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onAddTask;
+  final ValueChanged<int> onEditTask;
+  final ValueChanged<int> onDeleteTask;
 
   @override
   Widget build(BuildContext context) {
     final tasks = starterCareTasksFor(template);
-    return AppSheetFrame(
-      title: '模板详情',
-      maxHeightFactor: 0.84,
-      shrinkToContent: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PaperCard(
-            child: Row(
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    gradient: template.gradient,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  alignment: Alignment.center,
-                  child: AnimalArt(species: template, size: 42),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(template.label, style: AppText.display(21)),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${template.category} · ${template.code}',
-                        style: AppText.body(10.5, color: AppColors.muted),
-                      ),
-                      if (template.note.trim().isNotEmpty) ...[
-                        const SizedBox(height: 5),
-                        Text(
-                          template.note,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.body(10, color: AppColors.faint),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Callout(message: '使用此模板新增动物后，系统会自动创建以下固定任务。'),
-          const SizedBox(height: 16),
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PaperCard(
+          child: Row(
             children: [
-              Text('固定任务', style: AppText.display(16)),
-              const Spacer(),
-              Text(
-                '${tasks.length} 项',
-                style: AppText.body(10, color: AppColors.muted),
-              ),
-            ],
-          ),
-          const SizedBox(height: 9),
-          for (var index = 0; index < tasks.length; index++) ...[
-            _StarterTaskCard(task: tasks[index]),
-            if (index < tasks.length - 1) const SizedBox(height: 8),
-          ],
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _runAfterClose(context, onEdit),
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('编辑模板'),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: template.gradient,
+                  borderRadius: BorderRadius.circular(18),
                 ),
+                alignment: Alignment.center,
+                child: AnimalArt(species: template, size: 42),
               ),
-              const SizedBox(width: 9),
+              const SizedBox(width: 14),
               Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.rose,
-                    side: BorderSide(
-                      color: AppColors.rose.withValues(alpha: 0.45),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(template.label, style: AppText.display(21)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${template.category} · ${template.code}',
+                      style: AppText.body(10.5, color: AppColors.muted),
                     ),
-                  ),
-                  onPressed: () => _runAfterClose(context, onDelete),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: const Text('删除模板'),
+                    if (template.note.trim().isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        template.note,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.body(10, color: AppColors.faint),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 14),
+        const Callout(message: '使用此模板新增动物后，系统会自动创建以下固定任务。'),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Text('固定任务', style: AppText.display(16)),
+            const Spacer(),
+            Text(
+              '${tasks.length} 项',
+              style: AppText.body(10, color: AppColors.muted),
+            ),
+            const SizedBox(width: 7),
+            RoundIconButton(
+              icon: Icons.add_rounded,
+              size: 30,
+              onPressed: onAddTask,
+              foreground: AppColors.brand,
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        for (var index = 0; index < tasks.length; index++) ...[
+          _StarterTaskCard(
+            task: tasks[index],
+            petName: template.label,
+            onTap: () => onEditTask(index),
+            onDelete: () => onDeleteTask(index),
+          ),
+          if (index < tasks.length - 1) const SizedBox(height: 8),
         ],
-      ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(onPressed: onEdit, child: const Text('编辑')),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.rose,
+                  side: BorderSide(
+                    color: AppColors.rose.withValues(alpha: 0.45),
+                  ),
+                ),
+                onPressed: onDelete,
+                child: const Text('删除'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
-  }
-
-  void _runAfterClose(BuildContext context, VoidCallback action) {
-    Navigator.pop(context);
-    WidgetsBinding.instance.addPostFrameCallback((_) => action());
   }
 }
 
 class _StarterTaskCard extends StatelessWidget {
-  const _StarterTaskCard({required this.task});
+  const _StarterTaskCard({
+    required this.task,
+    required this.petName,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   final StarterCareTask task;
+  final String petName;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final isMust = task.priority == TaskPriority.must;
-    return PaperCard(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: isMust ? AppColors.roseWash : AppColors.brassWash,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              task.time,
-              style: AppText.number(
-                10.5,
-                color: isMust ? AppColors.rose : AppColors.brass,
-                weight: FontWeight.w700,
+    return GestureDetector(
+      onTap: onTap,
+      child: PaperCard(
+        padding: const EdgeInsets.fromLTRB(13, 11, 6, 11),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: isMust ? AppColors.roseWash : AppColors.brassWash,
+                borderRadius: BorderRadius.circular(13),
               ),
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: AppText.body(12.5, weight: FontWeight.w600),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  task.subtitle,
-                  style: AppText.body(9.5, color: AppColors.muted),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(task.type, style: AppText.body(9.5, color: AppColors.muted)),
-              const SizedBox(height: 3),
-              Text(
-                isMust ? '必做' : '建议',
-                style: AppText.body(
-                  8.5,
+              alignment: Alignment.center,
+              child: Text(
+                task.time,
+                style: AppText.number(
+                  10.5,
                   color: isMust ? AppColors.rose : AppColors.brass,
                   weight: FontWeight.w700,
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMust
+                              ? AppColors.roseWash
+                              : AppColors.brassWash,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          isMust ? '必做' : '建议',
+                          style: AppText.body(
+                            7.5,
+                            color: isMust ? AppColors.rose : AppColors.brass,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          petName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.body(11.5, weight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.paper2,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          task.type,
+                          style: AppText.body(
+                            8.5,
+                            color: AppColors.muted,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          task.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.body(12.5, weight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    task.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body(9.5, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: '删除固定任务',
+              onPressed: onDelete,
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                size: 18,
+                color: AppColors.faint,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -836,30 +1073,6 @@ class _AddSpeciesTemplateSheetState extends State<AddSpeciesTemplateSheet> {
               decoration: const InputDecoration(hintText: '记录物种别名、饲养类型或法规提醒'),
             ),
           ),
-          FormSection(
-            label: '固定任务',
-            child: Column(
-              children: [
-                for (var index = 0; index < _starterTasks.length; index++) ...[
-                  _EditableTemplateTask(
-                    task: _starterTasks[index],
-                    onTap: () => _editStarterTask(index),
-                    onDelete: () {
-                      setState(() => _starterTasks.removeAt(index));
-                    },
-                  ),
-                  if (index < _starterTasks.length - 1)
-                    const SizedBox(height: 8),
-                ],
-                const SizedBox(height: 9),
-                OutlinedButton.icon(
-                  onPressed: () => _editStarterTask(null),
-                  icon: const Icon(Icons.add_task_rounded, size: 18),
-                  label: const Text('添加固定任务'),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -931,27 +1144,6 @@ class _AddSpeciesTemplateSheetState extends State<AddSpeciesTemplateSheet> {
     if (selected != null && mounted) setState(() => _artStyle = selected);
   }
 
-  Future<void> _editStarterTask(int? index) async {
-    FocusManager.instance.primaryFocus?.unfocus();
-    final result = await showModalBottomSheet<StarterCareTask>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _StarterTaskEditorSheet(
-        initial: index == null ? null : _starterTasks[index],
-      ),
-    );
-    if (result == null || !mounted) return;
-    setState(() {
-      if (index == null) {
-        _starterTasks.add(result);
-      } else {
-        _starterTasks[index] = result;
-      }
-    });
-  }
-
   void _save() {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -988,73 +1180,6 @@ class _AddSpeciesTemplateSheetState extends State<AddSpeciesTemplateSheet> {
   }
 }
 
-class _EditableTemplateTask extends StatelessWidget {
-  const _EditableTemplateTask({
-    required this.task,
-    required this.onTap,
-    required this.onDelete,
-  });
-
-  final StarterCareTask task;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.paper2,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 45,
-                child: Text(
-                  task.time,
-                  style: AppText.number(
-                    10.5,
-                    color: AppColors.brand,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: AppText.body(12.5, weight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${task.type} · ${task.priority == TaskPriority.must ? '必做' : '建议'}',
-                      style: AppText.body(9, color: AppColors.muted),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: '删除任务',
-                onPressed: onDelete,
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  size: 19,
-                  color: AppColors.muted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StarterTaskEditorSheet extends StatefulWidget {
   const _StarterTaskEditorSheet({this.initial});
 
@@ -1072,9 +1197,7 @@ class _StarterTaskEditorSheetState extends State<_StarterTaskEditorSheet> {
   late final _subtitleController = TextEditingController(
     text: widget.initial?.subtitle ?? '',
   );
-  late final _timeController = TextEditingController(
-    text: widget.initial?.time ?? '18:00',
-  );
+  late TimeOfDay _time = _parseTime(widget.initial?.time ?? '18:00');
   late String _type = widget.initial?.type ?? '环境';
   late bool _must = widget.initial?.priority == TaskPriority.must;
 
@@ -1082,7 +1205,6 @@ class _StarterTaskEditorSheetState extends State<_StarterTaskEditorSheet> {
   void dispose() {
     _titleController.dispose();
     _subtitleController.dispose();
-    _timeController.dispose();
     super.dispose();
   }
 
@@ -1105,11 +1227,39 @@ class _StarterTaskEditorSheetState extends State<_StarterTaskEditorSheet> {
           ),
           FormSection(
             label: '执行时间',
-            child: TextField(
-              controller: _timeController,
-              keyboardType: TextInputType.datetime,
-              style: AppText.number(13.5),
-              decoration: const InputDecoration(hintText: '18:00'),
+            child: InkWell(
+              onTap: _pickTime,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.paper,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.hair),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.schedule_rounded,
+                      size: 18,
+                      color: AppColors.muted,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        _formatTime(_time),
+                        style: AppText.number(13.5),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: AppColors.faint,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           FormSection(
@@ -1154,13 +1304,8 @@ class _StarterTaskEditorSheetState extends State<_StarterTaskEditorSheet> {
 
   void _save() {
     final title = _titleController.text.trim();
-    final time = _timeController.text.trim();
     if (title.isEmpty) {
       showAppMessage(context, '请填写任务名称');
-      return;
-    }
-    if (!RegExp(r'^\d{2}:\d{2}$').hasMatch(time)) {
-      showAppMessage(context, '请按 HH:mm 格式填写执行时间');
       return;
     }
     Navigator.pop(
@@ -1169,10 +1314,61 @@ class _StarterTaskEditorSheetState extends State<_StarterTaskEditorSheet> {
         title: title,
         subtitle: _subtitleController.text.trim(),
         type: _type,
-        time: time,
+        time: _formatTime(_time),
         priority: _must ? TaskPriority.must : TaskPriority.suggested,
       ),
     );
+  }
+
+  static TimeOfDay _parseTime(String value) {
+    final parts = value.split(':');
+    if (parts.length != 2) return const TimeOfDay(hour: 18, minute: 0);
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
+      return const TimeOfDay(hour: 18, minute: 0);
+    }
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  String _formatTime(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pickTime() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    var draft = _time;
+    final selected = await showModalBottomSheet<TimeOfDay>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AppSheetFrame(
+          title: '选择执行时间',
+          maxHeightFactor: 0.58,
+          shrinkToContent: true,
+          footer: PrimaryButton(
+            label: '确认时间',
+            onPressed: () => Navigator.pop(context, draft),
+          ),
+          child: SizedBox(
+            height: 180,
+            child: HourMinutePicker(
+              initialTime: draft,
+              onChanged: (value) => setModalState(() => draft = value),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) setState(() => _time = selected);
   }
 }
 
@@ -1236,25 +1432,29 @@ class _RoomsScreenState extends State<RoomsScreen> {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: AppColors.brandLine),
                       ),
-                      child: const Icon(
-                        Icons.meeting_room_outlined,
-                        color: AppColors.brand,
-                        size: 22,
-                      ),
+                      child: Icon(room.icon, color: AppColors.brand, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(room.name, style: AppText.display(17)),
-                          const SizedBox(height: 3),
-                          Text(
-                            room.type,
-                            style: AppText.body(10.5, color: AppColors.muted),
+                          Row(
+                            children: [
+                              _RoomTypeBadge(type: room.type),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  room.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppText.display(17),
+                                ),
+                              ),
+                            ],
                           ),
                           if (room.notes.isNotEmpty) ...[
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
                               room.notes,
                               style: AppText.body(
@@ -1267,11 +1467,6 @@ class _RoomsScreenState extends State<RoomsScreen> {
                         ],
                       ),
                     ),
-                    const Icon(
-                      Icons.edit_outlined,
-                      size: 17,
-                      color: AppColors.faint,
-                    ),
                   ],
                 ),
               ),
@@ -1282,11 +1477,65 @@ class _RoomsScreenState extends State<RoomsScreen> {
   }
 }
 
-class DailyNeedsScreen extends StatelessWidget {
+class _RoomTypeBadge extends StatelessWidget {
+  const _RoomTypeBadge({required this.type});
+
+  final String type;
+
+  @override
+  Widget build(BuildContext context) {
+    final (background, foreground) = switch (type) {
+      '温控房间' => (AppColors.amberWash, AppColors.amber),
+      '水族空间' => (AppColors.blueWash, AppColors.blue),
+      '阳台' || '室外围栏' => (AppColors.brassWash, AppColors.brass),
+      '隔离空间' || '医疗观察区' => (AppColors.roseWash, AppColors.rose),
+      '公共空间' => (AppColors.brandWash, AppColors.brand),
+      _ => (AppColors.paper2, AppColors.ink2),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: foreground.withValues(alpha: 0.16)),
+      ),
+      child: Text(
+        type,
+        style: AppText.body(8.5, color: foreground, weight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class DailyNeedsScreen extends StatefulWidget {
   const DailyNeedsScreen({super.key, required this.state, this.petId});
 
   final AppState state;
   final String? petId;
+
+  @override
+  State<DailyNeedsScreen> createState() => _DailyNeedsScreenState();
+}
+
+class _DailyNeedsScreenState extends State<DailyNeedsScreen> {
+  AppState get state => widget.state;
+  String? get petId => widget.petId;
+
+  @override
+  void initState() {
+    super.initState();
+    state.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    state.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1295,7 +1544,7 @@ class DailyNeedsScreen extends StatelessWidget {
         .toList();
     final selectedPet = petId == null ? null : state.petByIdOrNull(petId!);
     return _ManagementPage(
-      title: petId == null ? '每日照护需求' : '${selectedPet?.name ?? '当前宠物'}的每日需求',
+      title: petId == null ? '养护任务' : '${selectedPet?.name ?? '当前宠物'}的养护任务',
       subtitle: '创建一次 · 按重复规则自动生成',
       action: visiblePets.isEmpty
           ? const SizedBox.shrink()
@@ -1316,8 +1565,8 @@ class DailyNeedsScreen extends StatelessWidget {
       children: visiblePets.isEmpty
           ? const [
               EmptyState(
-                title: '暂无每日照护需求',
-                message: '每日照护需求需要关联宠物档案，请先在“动物”页面添加宠物。',
+                title: '暂无养护任务',
+                message: '养护任务需要关联宠物档案，请先在“动物”页面添加宠物。',
               ),
             ]
           : [
@@ -1352,7 +1601,7 @@ class DailyNeedsScreen extends StatelessWidget {
                   const Padding(
                     padding: EdgeInsets.only(bottom: 12),
                     child: EmptyState(
-                      title: '还没有每日需求',
+                      title: '还没有养护任务',
                       message: '可以为这只宠物设置喂食、清洁、环境检查等每日固定需求。',
                     ),
                   )
@@ -1362,71 +1611,339 @@ class DailyNeedsScreen extends StatelessWidget {
                   ))
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: PaperCard(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 11,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: definition.enabled
-                                    ? AppColors.brandWash
-                                    : AppColors.paper2,
-                                borderRadius: BorderRadius.circular(11),
-                              ),
-                              child: Icon(
-                                Icons.repeat_rounded,
-                                size: 18,
-                                color: definition.enabled
-                                    ? AppColors.brand
-                                    : AppColors.faint,
-                              ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () =>
+                              _showNeedDetail(context, definition, pet),
+                          borderRadius: BorderRadius.circular(20),
+                          child: PaperCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 11,
                             ),
-                            const SizedBox(width: 11),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    definition.title,
-                                    style: AppText.body(
-                                      13,
-                                      weight: FontWeight.w600,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        definition.priority == TaskPriority.must
+                                        ? AppColors.roseWash
+                                        : AppColors.brassWash,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    definition.defaultTime,
+                                    style: AppText.number(
+                                      10.5,
+                                      color:
+                                          definition.priority ==
+                                              TaskPriority.must
+                                          ? AppColors.rose
+                                          : AppColors.brass,
+                                      weight: FontWeight.w700,
                                     ),
                                   ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '${definition.defaultTime} · ${definition.type} · ${definition.repeatDescription}',
-                                    style: AppText.body(
-                                      9.5,
-                                      color: AppColors.muted,
+                                ),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                  child: AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 160),
+                                    opacity: definition.enabled ? 1 : 0.5,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            _DefinitionPriorityBadge(
+                                              priority: definition.priority,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text.rich(
+                                                TextSpan(
+                                                  children: [
+                                                    TextSpan(
+                                                      text:
+                                                          '${definition.type}：',
+                                                      style: AppText.body(
+                                                        10.5,
+                                                        color: AppColors.muted,
+                                                        weight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                    TextSpan(
+                                                      text: definition.title,
+                                                      style: AppText.body(
+                                                        13.5,
+                                                        weight: FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Text(
+                                          '重复方式：${definition.repeatDescription}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppText.body(
+                                            10,
+                                            color: AppColors.muted,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 4),
+                                Switch(
+                                  value: definition.enabled,
+                                  onChanged: (value) =>
+                                      state.setTaskDefinitionEnabled(
+                                        definition.id,
+                                        value,
+                                      ),
+                                  activeThumbColor: Colors.white,
+                                  activeTrackColor: AppColors.brand,
+                                  inactiveThumbColor: Colors.white,
+                                  inactiveTrackColor: AppColors.paper3,
+                                ),
+                              ],
                             ),
-                            Switch(
-                              value: definition.enabled,
-                              onChanged: (value) =>
-                                  state.setTaskDefinitionEnabled(
-                                    definition.id,
-                                    value,
-                                  ),
-                              activeThumbColor: Colors.white,
-                              activeTrackColor: AppColors.brand,
-                              inactiveThumbColor: Colors.white,
-                              inactiveTrackColor: AppColors.paper3,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
               ],
             ],
+    );
+  }
+
+  void _showNeedDetail(
+    BuildContext context,
+    CareTaskDefinition definition,
+    PetProfile pet,
+  ) {
+    showAppSheet(
+      context: context,
+      child: _DailyNeedDetailSheet(
+        state: state,
+        definition: definition,
+        pet: pet,
+      ),
+    );
+  }
+}
+
+class _DefinitionPriorityBadge extends StatelessWidget {
+  const _DefinitionPriorityBadge({required this.priority});
+
+  final TaskPriority priority;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMust = priority == TaskPriority.must;
+    final color = isMust ? AppColors.rose : AppColors.brass;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isMust ? AppColors.roseWash : AppColors.brassWash,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        isMust ? '必做' : '建议',
+        style: AppText.body(8, color: color, weight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _DailyNeedDetailSheet extends StatelessWidget {
+  const _DailyNeedDetailSheet({
+    required this.state,
+    required this.definition,
+    required this.pet,
+  });
+
+  final AppState state;
+  final CareTaskDefinition definition;
+  final PetProfile pet;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSheetFrame(
+      title: '养护任务',
+      maxHeightFactor: 0.7,
+      footer: PrimaryButton(
+        label: '删除',
+        ghost: true,
+        onPressed: () => _delete(context),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: pet.species.gradient,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: pet.species.ink.withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.58),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: AnimalArt(species: pet.species, size: 25),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(pet.name, style: AppText.display(16)),
+                      const SizedBox(height: 2),
+                      Text(
+                        pet.species.label,
+                        style: AppText.body(9.5, color: AppColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      definition.defaultTime,
+                      style: AppText.number(13, weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      definition.enabled ? '已启用' : '已暂停',
+                      style: AppText.body(
+                        9,
+                        color: definition.enabled
+                            ? AppColors.brand
+                            : AppColors.faint,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          PaperCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _DefinitionPriorityBadge(priority: definition.priority),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        '${definition.type}：${definition.title}',
+                        style: AppText.body(14, weight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _DetailValueRow(
+                  label: '重复方式',
+                  value: definition.repeatDescription,
+                ),
+                const SizedBox(height: 9),
+                _DetailValueRow(
+                  label: '任务说明',
+                  value: definition.subtitle.isEmpty
+                      ? '暂无任务说明'
+                      : definition.subtitle,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.paper,
+        title: Text('删除养护任务？', style: AppText.display(19)),
+        content: Text(
+          '删除后将停止生成后续任务，已经生成的任务不会受影响。',
+          style: AppText.body(12, color: AppColors.muted, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.rose,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    state.deleteTaskDefinition(definition.id);
+    showAppMessageAndPop(context, '养护任务已删除');
+  }
+}
+
+class _DetailValueRow extends StatelessWidget {
+  const _DetailValueRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 62,
+          child: Text(label, style: AppText.body(10, color: AppColors.muted)),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: AppText.body(
+              11,
+              color: AppColors.ink2,
+              weight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1448,12 +1965,37 @@ class _AddRoomSheetState extends State<AddRoomSheet> {
   late final _notesController = TextEditingController(
     text: widget.existing?.notes ?? '',
   );
+  late final _customTypeController = TextEditingController(
+    text: widget.existing != null && !_types.contains(widget.existing!.type)
+        ? widget.existing!.type
+        : '',
+  );
   late String _type = widget.existing?.type ?? '室内';
+  late bool _customType =
+      widget.existing != null && !_types.contains(widget.existing!.type);
+  late IconData _icon =
+      widget.existing?.icon ??
+      defaultRoomIconForType(widget.existing?.type ?? '室内');
+
+  static const _types = [
+    '室内',
+    '温控房间',
+    '水族空间',
+    '阳台',
+    '室外围栏',
+    '饲养柜',
+    '隔离空间',
+    '繁殖空间',
+    '活动区',
+    '医疗观察区',
+    '公共空间',
+  ];
 
   @override
   void dispose() {
     _nameController.dispose();
     _notesController.dispose();
+    _customTypeController.dispose();
     super.dispose();
   }
 
@@ -1461,7 +2003,7 @@ class _AddRoomSheetState extends State<AddRoomSheet> {
   Widget build(BuildContext context) {
     return AppSheetFrame(
       title: widget.existing == null ? '新增饲养空间' : '编辑饲养空间',
-      maxHeightFactor: 0.72,
+      maxHeightFactor: 0.86,
       footer: Row(
         children: [
           if (widget.existing != null) ...[
@@ -1483,6 +2025,7 @@ class _AddRoomSheetState extends State<AddRoomSheet> {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           FormSection(
             label: '房间名称',
@@ -1494,16 +2037,58 @@ class _AddRoomSheetState extends State<AddRoomSheet> {
           ),
           FormSection(
             label: '空间类型',
-            child: BottomSelectField<String>(
-              title: '选择空间类型',
-              value: _type,
-              icon: Icons.home_work_outlined,
-              options: const ['室内', '温控房间', '水族空间', '阳台', '室外围栏']
-                  .map(
-                    (value) => BottomSelectOption(value: value, label: value),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _type = value),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  alignment: WrapAlignment.start,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final type in _types)
+                      _RoomTypeChoice(
+                        label: type,
+                        selected: !_customType && _type == type,
+                        onTap: () => setState(() {
+                          _type = type;
+                          _customType = false;
+                        }),
+                      ),
+                    _RoomTypeChoice(
+                      label: '自定义',
+                      selected: _customType,
+                      onTap: () => setState(() => _customType = true),
+                    ),
+                  ],
+                ),
+                if (_customType) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: const ValueKey('room-custom-type-field'),
+                    controller: _customTypeController,
+                    style: AppText.body(13),
+                    decoration: const InputDecoration(hintText: '输入自定义空间类型'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          FormSection(
+            label: '空间图标',
+            child: Wrap(
+              key: const ValueKey('room-icon-options'),
+              alignment: WrapAlignment.start,
+              spacing: 9,
+              runSpacing: 9,
+              children: [
+                for (final option in roomIconOptions)
+                  _RoomIconChoice(
+                    key: ValueKey('room-icon-${option.$1}'),
+                    icon: option.$2,
+                    selected: _icon.codePoint == option.$2.codePoint,
+                    onTap: () => setState(() => _icon = option.$2),
+                  ),
+              ],
             ),
           ),
           FormSection(
@@ -1526,19 +2111,28 @@ class _AddRoomSheetState extends State<AddRoomSheet> {
       showAppMessage(context, '请填写房间名称');
       return;
     }
+    final resolvedType = _customType
+        ? _customTypeController.text.trim()
+        : _type;
+    if (resolvedType.isEmpty) {
+      showAppMessage(context, '请填写自定义空间类型');
+      return;
+    }
     final existing = widget.existing;
     if (existing == null) {
       widget.state.addRoom(
         name: _nameController.text,
-        type: _type,
+        type: resolvedType,
         notes: _notesController.text,
+        icon: _icon,
       );
     } else {
       widget.state.updateRoom(
         id: existing.id,
         name: _nameController.text,
-        type: _type,
+        type: resolvedType,
         notes: _notesController.text,
+        icon: _icon,
       );
     }
     showAppMessageAndPop(context, existing == null ? '饲养空间已创建' : '饲养空间已更新');
@@ -1578,6 +2172,94 @@ class _AddRoomSheetState extends State<AddRoomSheet> {
       return;
     }
     showAppMessageAndPop(context, '饲养空间已删除');
+  }
+}
+
+class _RoomTypeChoice extends StatelessWidget {
+  const _RoomTypeChoice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(11),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.brandWash : AppColors.paper,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(
+              color: selected ? AppColors.brand2 : AppColors.hair,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: AppText.body(
+              11.5,
+              color: selected ? AppColors.brand : AppColors.ink2,
+              weight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomIconChoice extends StatelessWidget {
+  const _RoomIconChoice({
+    super.key,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '空间图标',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.brandWash : AppColors.paper,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.brand2 : AppColors.hair,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 21,
+            color: selected ? AppColors.brand : AppColors.muted,
+          ),
+        ),
+      ),
+    );
   }
 }
 

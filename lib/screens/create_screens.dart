@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -680,6 +679,56 @@ class _AddPhotoTile extends StatelessWidget {
   }
 }
 
+class _TaskPriorityChoice extends StatelessWidget {
+  const _TaskPriorityChoice({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.wash,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final Color color;
+  final Color wash;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? wash : AppColors.paper,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? color : AppColors.hair,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: AppText.body(
+              12.5,
+              color: selected ? color : AppColors.ink2,
+              weight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AddTaskScreen extends StatefulWidget {
   const AddTaskScreen({
     super.key,
@@ -701,11 +750,13 @@ class AddTaskScreen extends StatefulWidget {
 class _AddTaskScreenState extends State<AddTaskScreen> {
   late String _petId = widget.initialPetId ?? widget.state.pets.first.id;
   String _type = '环境';
+  TaskPriority _priority = TaskPriority.suggested;
   late String _repeatMode = widget.initialRecurring ? '每天' : '仅今天';
   final Set<int> _customWeekdays = {DateTime.now().weekday};
   TimeOfDay _time = const TimeOfDay(hour: 18, minute: 0);
   DateTime _fixedDate = PetDates.dateOnly();
   final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
 
   static const _repeatModes = [
     '仅今天',
@@ -720,6 +771,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -815,13 +867,80 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 ),
                 SliverToBoxAdapter(
                   child: FormSection(
+                    label: '任务类型',
+                    child: BottomSelectField<String>(
+                      title: '选择任务类型',
+                      value: _type,
+                      icon: Icons.tune_rounded,
+                      options: const ['环境', '喂食', '清洁', '健康', '设备', '称重']
+                          .map(
+                            (value) =>
+                                BottomSelectOption(value: value, label: value),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        setState(() => _type = value);
+                      },
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: FormSection(
                     label: '任务名称',
                     child: TextField(
                       controller: _titleController,
                       onTapOutside: (_) =>
                           FocusManager.instance.primaryFocus?.unfocus(),
                       style: AppText.body(13.5),
-                      decoration: const InputDecoration(hintText: '例如：检查加热垫'),
+                      decoration: InputDecoration(hintText: _titleHint),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: FormSection(
+                    label: '任务说明',
+                    child: TextField(
+                      controller: _descriptionController,
+                      onTapOutside: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
+                      minLines: 2,
+                      maxLines: 4,
+                      style: AppText.body(13),
+                      decoration: InputDecoration(hintText: _descriptionHint),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: FormSection(
+                    label: '优先级',
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _TaskPriorityChoice(
+                            key: const ValueKey('task-priority-must'),
+                            label: '必做',
+                            selected: _priority == TaskPriority.must,
+                            color: AppColors.rose,
+                            wash: AppColors.roseWash,
+                            onTap: () =>
+                                setState(() => _priority = TaskPriority.must),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _TaskPriorityChoice(
+                            key: const ValueKey('task-priority-suggested'),
+                            label: '建议',
+                            selected: _priority == TaskPriority.suggested,
+                            color: AppColors.brass,
+                            wash: AppColors.brassWash,
+                            onTap: () => setState(
+                              () => _priority = TaskPriority.suggested,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -866,26 +985,6 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: FormSection(
-                    label: '任务类型',
-                    child: BottomSelectField<String>(
-                      title: '选择任务类型',
-                      value: _type,
-                      icon: Icons.tune_rounded,
-                      options: const ['环境', '喂食', '清洁', '健康', '设备', '称重']
-                          .map(
-                            (value) =>
-                                BottomSelectOption(value: value, label: value),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        FocusManager.instance.primaryFocus?.unfocus();
-                        setState(() => _type = value);
-                      },
-                    ),
-                  ),
-                ),
                 const SliverToBoxAdapter(child: SizedBox(height: 110)),
               ],
             ),
@@ -896,6 +995,30 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         child: PrimaryButton(label: '创建任务', onPressed: _create),
       ),
     );
+  }
+
+  String get _titleHint {
+    return switch (_type) {
+      '环境' => '例如：检查温湿度',
+      '喂食' => '例如：准备晚餐',
+      '清洁' => '例如：清理生活区',
+      '健康' => '例如：观察精神状态',
+      '设备' => '例如：检查过滤设备',
+      '称重' => '例如：每周称重',
+      _ => '填写任务名称',
+    };
+  }
+
+  String get _descriptionHint {
+    return switch (_type) {
+      '环境' => '例如：记录冷热区温度与湿度',
+      '喂食' => '例如：准备晚餐并观察进食情况',
+      '清洁' => '例如：更换垫材并清洁生活区',
+      '健康' => '例如：观察精神状态与体重变化',
+      '设备' => '例如：检查温控设备运行状态',
+      '称重' => '例如：同一时间记录本次体重',
+      _ => '说明检查内容或执行标准',
+    };
   }
 
   Widget _buildRepeatSection() {
@@ -1007,6 +1130,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       showAppMessage(context, '请填写任务名称');
       return;
     }
+    final description = _descriptionController.text.trim();
+    if (description.isEmpty) {
+      showAppMessage(context, '请填写任务说明');
+      return;
+    }
     if (_repeatMode == '指定星期' && _customWeekdays.isEmpty) {
       showAppMessage(context, '请至少选择一个星期');
       return;
@@ -1022,8 +1150,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     widget.state.addTask(
       petId: _petId,
       title: title,
+      subtitle: description,
       time: _formatTime(_time),
       type: _type,
+      priority: _priority,
       recurring: recurring,
       date: _repeatMode == '固定日期' ? _fixedDate : PetDates.dateOnly(),
       weekdays: weekdays,
@@ -1069,17 +1199,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             onPressed: () => Navigator.pop(context, draft),
           ),
           child: SizedBox(
-            height: 220,
-            child: CupertinoDatePicker(
-              mode: CupertinoDatePickerMode.time,
-              use24hFormat: true,
-              initialDateTime: DateTime(2000, 1, 1, _time.hour, _time.minute),
-              minuteInterval: 1,
-              onDateTimeChanged: (value) {
-                setModalState(() {
-                  draft = TimeOfDay(hour: value.hour, minute: value.minute);
-                });
-              },
+            height: 180,
+            child: HourMinutePicker(
+              initialTime: draft,
+              onChanged: (value) => setModalState(() => draft = value),
             ),
           ),
         ),

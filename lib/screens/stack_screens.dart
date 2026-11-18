@@ -239,7 +239,7 @@ class _PetProfileHero extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: pet.species.gradient,
           border: Border.all(color: AppColors.ink.withValues(alpha: 0.06)),
@@ -254,33 +254,35 @@ class _PetProfileHero extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              right: -18,
-              top: -30,
+              right: -24,
+              top: -34,
               child: AnimalArt(
                 species: pet.species,
-                size: 150,
-                color: pet.species.ink.withValues(alpha: 0.055),
+                size: 164,
+                color: pet.species.ink.withValues(alpha: 0.05),
               ),
             ),
             Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 68,
-                      height: 68,
+                      width: 72,
+                      height: 72,
                       clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.52),
-                        borderRadius: BorderRadius.circular(22),
+                        color: Colors.white.withValues(alpha: 0.64),
+                        borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: Colors.white.withValues(alpha: 0.78),
                         ),
                         boxShadow: const [
                           BoxShadow(
-                            color: Color(0x1F15211C),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
+                            color: Color(0x2415211C),
+                            blurRadius: 20,
+                            offset: Offset(0, 9),
                           ),
                         ],
                       ),
@@ -291,42 +293,65 @@ class _PetProfileHero extends StatelessWidget {
                               path: pet.photos.first,
                               fallback: AnimalArt(
                                 species: pet.species,
-                                size: 44,
+                                size: 46,
                               ),
                             ),
                     ),
-                    const SizedBox(width: 15),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(pet.name, style: AppText.display(26)),
+                          Row(
+                            children: [
+                              _PetGenderIcon(gender: pet.gender),
+                              const SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  pet.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppText.display(24),
+                                ),
+                              ),
+                              const SizedBox(width: 7),
+                              _ProfileStatus(label: pet.status),
+                            ],
+                          ),
                           const SizedBox(height: 5),
                           Text(
                             '${pet.species.label} · ${pet.age}',
-                            style: AppText.body(11.5, color: AppColors.ink2),
+                            style: AppText.body(
+                              11.5,
+                              color: AppColors.ink2,
+                              weight: FontWeight.w500,
+                            ),
                           ),
-                          const SizedBox(height: 9),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
+                          const SizedBox(height: 8),
+                          Row(
                             children: [
-                              _ProfileTag(label: roomName),
-                              if (pet.environment.isNotEmpty)
-                                _ProfileTag(label: pet.environment),
-                              _ProfileTag(label: pet.status),
-                              if (pet.gender.isNotEmpty)
-                                _ProfileTag(label: pet.gender),
-                              if (pet.birthday != null)
-                                _ProfileTag(
-                                  label:
-                                      '生日 ${PetDates.reportDate(pet.birthday!)}',
+                              const Icon(
+                                Icons.location_on_outlined,
+                                size: 13,
+                                color: AppColors.muted,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  [
+                                    roomName,
+                                    if (pet.environment.isNotEmpty)
+                                      pet.environment,
+                                  ].join(' · '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppText.body(
+                                    10.5,
+                                    color: AppColors.muted,
+                                    weight: FontWeight.w600,
+                                  ),
                                 ),
-                              if (pet.startedAt != null)
-                                _ProfileTag(
-                                  label:
-                                      '饲养于 ${PetDates.reportDate(pet.startedAt!)}',
-                                ),
+                              ),
                             ],
                           ),
                         ],
@@ -334,39 +359,53 @@ class _PetProfileHero extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 17),
-                Container(
-                  height: 1,
-                  color: AppColors.ink.withValues(alpha: 0.08),
-                ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    LabeledMetric(
-                      label: '温度',
-                      value: pet.temperature,
-                      labelColor: AppColors.ink.withValues(alpha: 0.45),
-                      valueSize: 15,
-                      spacing: 0.7,
+                    Expanded(
+                      child: _HeroMetric(
+                        label: '温度',
+                        value: pet.temperature,
+                        icon: Icons.thermostat_rounded,
+                      ),
                     ),
-                    _verticalRule(),
-                    LabeledMetric(
-                      label: '湿度',
-                      value: pet.humidity,
-                      labelColor: AppColors.ink.withValues(alpha: 0.45),
-                      valueSize: 15,
-                      spacing: 0.7,
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: _HeroMetric(
+                        label: '湿度',
+                        value: pet.humidity,
+                        icon: Icons.water_drop_outlined,
+                      ),
                     ),
-                    _verticalRule(),
-                    LabeledMetric(
-                      label: '体重',
-                      value: pet.weight,
-                      labelColor: AppColors.ink.withValues(alpha: 0.45),
-                      valueSize: 15,
-                      spacing: 0.7,
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: _HeroMetric(
+                        label: '体重',
+                        value: pet.weight,
+                        icon: Icons.monitor_weight_outlined,
+                      ),
                     ),
                   ],
                 ),
+                if (pet.birthday != null || pet.startedAt != null) ...[
+                  const SizedBox(height: 13),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      if (pet.birthday != null)
+                        _ProfileMeta(
+                          icon: Icons.cake_outlined,
+                          label: '生日 ${PetDates.reportDate(pet.birthday!)}',
+                        ),
+                      if (pet.startedAt != null)
+                        _ProfileMeta(
+                          icon: Icons.home_outlined,
+                          label: '饲养于 ${PetDates.reportDate(pet.startedAt!)}',
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ],
@@ -374,44 +413,156 @@ class _PetProfileHero extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _verticalRule() {
-    return Container(
-      width: 1,
-      height: 32,
-      margin: const EdgeInsets.symmetric(horizontal: 13),
-      color: AppColors.ink.withValues(alpha: 0.08),
+class _PetGenderIcon extends StatelessWidget {
+  const _PetGenderIcon({required this.gender});
+
+  final String gender;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = gender.trim().toLowerCase();
+    final isMale =
+        gender.contains('雄') || gender.contains('公') || normalized == 'male';
+    final isFemale =
+        gender.contains('雌') || gender.contains('母') || normalized == 'female';
+    final color = isMale
+        ? AppColors.blue
+        : isFemale
+        ? AppColors.rose
+        : AppColors.faint;
+    final background = isMale
+        ? AppColors.blueWash
+        : isFemale
+        ? AppColors.roseWash
+        : AppColors.paper.withValues(alpha: 0.58);
+    final icon = isMale
+        ? Icons.male_rounded
+        : isFemale
+        ? Icons.female_rounded
+        : Icons.transgender_rounded;
+    final label = isMale
+        ? '雄性'
+        : isFemale
+        ? '雌性'
+        : gender.trim().isEmpty
+        ? '性别未设置'
+        : gender.trim();
+
+    return Semantics(
+      label: label,
+      child: Container(
+        key: const ValueKey('pet-profile-gender-icon'),
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: background,
+          shape: BoxShape.circle,
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 19, color: color),
+      ),
     );
   }
 }
 
-class _ProfileTag extends StatelessWidget {
-  const _ProfileTag({required this.label});
+class _ProfileStatus extends StatelessWidget {
+  const _ProfileStatus({required this.label});
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.6),
+        color: Colors.white.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.ink.withValues(alpha: 0.06)),
+        border: Border.all(color: AppColors.brand2.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const PulseDot(color: AppColors.brand2, size: 5),
+          const SizedBox(width: 4),
           Text(
             label,
             style: AppText.body(
-              10,
-              color: AppColors.ink2,
-              weight: FontWeight.w600,
+              8.5,
+              color: AppColors.brand,
+              weight: FontWeight.w700,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _HeroMetric extends StatelessWidget {
+  const _HeroMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.48),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.52)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: AppColors.muted),
+              const SizedBox(width: 4),
+              Text(label, style: AppText.body(8.5, color: AppColors.muted)),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.number(
+              13.5,
+              color: AppColors.ink,
+              weight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileMeta extends StatelessWidget {
+  const _ProfileMeta({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: AppColors.muted),
+        const SizedBox(width: 4),
+        Text(label, style: AppText.body(9.5, color: AppColors.muted)),
+      ],
     );
   }
 }
@@ -550,7 +701,7 @@ class _JournalList extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          pet.logs[index].time,
+                          _journalTime(pet.logs[index]),
                           style: AppText.number(
                             10,
                             color: AppColors.faint,
@@ -618,6 +769,13 @@ class _JournalList extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _journalTime(JournalEntry entry) {
+    final occurredAt = entry.occurredAt;
+    if (occurredAt == null) return entry.time;
+    return '${PetDates.reportDate(occurredAt)} '
+        '${PetDates.clock(occurredAt)}';
   }
 }
 
@@ -690,9 +848,16 @@ class _GrowthChart extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               if (recentRecords.isEmpty)
-                const EmptyState(
-                  title: '还没有体重记录',
-                  message: '记录第一次体重后，这里会展示最近 6 次变化趋势。',
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Text(
+                    '还没有体重记录',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.muted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 )
               else
                 Semantics(
@@ -1002,7 +1167,6 @@ class _PetTasks extends StatelessWidget {
           TaskTile(
             task: tasks[index],
             pet: pet,
-            onToggle: () => state.toggleTask(tasks[index].id),
             onOpen: () => showAppSheet(
               context: context,
               child: TaskDetailSheet(state: state, task: tasks[index]),
@@ -1523,25 +1687,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MenuGroup(
-            children: [
-              MenuRow(
-                icon: Icons.category_outlined,
-                title: '宠物模板库',
-                subtitle:
-                    '${widget.state.speciesTemplates.length} 个模板 · 支持新增自定义物种',
-                tone: MenuTone.brand,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        SpeciesTemplateLibraryScreen(state: widget.state),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
           PaperCard(
             padding: EdgeInsets.zero,
             child: ClipRRect(

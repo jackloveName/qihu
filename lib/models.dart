@@ -988,28 +988,87 @@ class PetRoom {
     required this.name,
     required this.type,
     this.notes = '',
+    this.icon = Icons.meeting_room_outlined,
   });
 
   final String id;
   final String name;
   final String type;
   final String notes;
+  final IconData icon;
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'type': type,
     'notes': notes,
+    'icon': roomIconKey(icon),
   };
 
   factory PetRoom.fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String? ?? '室内';
     return PetRoom(
       id: json['id'] as String,
       name: json['name'] as String? ?? '未命名房间',
-      type: json['type'] as String? ?? '室内',
+      type: type,
       notes: json['notes'] as String? ?? '',
+      icon: roomIconFromKey(json['icon'] as String?, type: type),
     );
   }
+}
+
+const roomIconOptions = <(String, IconData)>[
+  ('room', Icons.meeting_room_outlined),
+  ('home', Icons.home_outlined),
+  ('temperature', Icons.thermostat_outlined),
+  ('water', Icons.water_drop_outlined),
+  ('balcony', Icons.balcony_outlined),
+  ('yard', Icons.yard_outlined),
+  ('storage', Icons.warehouse_outlined),
+  ('pets', Icons.pets_outlined),
+  ('medical', Icons.medical_services_outlined),
+  ('science', Icons.science_outlined),
+  ('sofa', Icons.weekend_outlined),
+  ('chair', Icons.chair_outlined),
+  ('kitchen', Icons.kitchen_outlined),
+  ('bath', Icons.bathtub_outlined),
+  ('bed', Icons.bed_outlined),
+  ('door', Icons.door_front_door_outlined),
+  ('plant', Icons.local_florist_outlined),
+  ('power', Icons.electrical_services_outlined),
+];
+
+String roomIconKey(IconData icon) {
+  return roomIconOptions
+      .firstWhere(
+        (option) => option.$2.codePoint == icon.codePoint,
+        orElse: () => roomIconOptions.first,
+      )
+      .$1;
+}
+
+IconData roomIconFromKey(String? key, {String type = ''}) {
+  return roomIconOptions
+          .where((option) => option.$1 == key)
+          .map((option) => option.$2)
+          .firstOrNull ??
+      defaultRoomIconForType(type);
+}
+
+IconData defaultRoomIconForType(String type) {
+  return switch (type) {
+    '温控房间' => Icons.thermostat_outlined,
+    '水族空间' => Icons.water_drop_outlined,
+    '阳台' => Icons.balcony_outlined,
+    '室外围栏' => Icons.yard_outlined,
+    '饲养柜' => Icons.warehouse_outlined,
+    '繁殖空间' => Icons.pets_outlined,
+    '医疗观察区' => Icons.medical_services_outlined,
+    '隔离空间' => Icons.medical_services_outlined,
+    '公共空间' => Icons.home_outlined,
+    '室内' => Icons.home_outlined,
+    _ => Icons.meeting_room_outlined,
+  };
 }
 
 class FoodSupply {
@@ -1552,12 +1611,14 @@ class AppState extends ChangeNotifier {
     required String name,
     required String type,
     String notes = '',
+    IconData? icon,
   }) {
     final room = PetRoom(
       id: 'room-${DateTime.now().microsecondsSinceEpoch}',
       name: name.trim(),
       type: type,
       notes: notes.trim(),
+      icon: icon ?? defaultRoomIconForType(type),
     );
     rooms.add(room);
     notifyListeners();
@@ -1570,6 +1631,7 @@ class AppState extends ChangeNotifier {
     required String name,
     required String type,
     String notes = '',
+    IconData? icon,
   }) {
     final index = rooms.indexWhere((room) => room.id == id);
     if (index < 0 || name.trim().isEmpty) return;
@@ -1578,6 +1640,7 @@ class AppState extends ChangeNotifier {
       name: name.trim(),
       type: type,
       notes: notes.trim(),
+      icon: icon ?? defaultRoomIconForType(type),
     );
     notifyListeners();
     unawaited(_persist());
@@ -1969,6 +2032,8 @@ class AppState extends ChangeNotifier {
     required String title,
     required String time,
     required String type,
+    String subtitle = '',
+    TaskPriority priority = TaskPriority.suggested,
     bool recurring = true,
     DateTime? date,
     Set<int> weekdays = const {},
@@ -1982,10 +2047,10 @@ class AppState extends ChangeNotifier {
           id: 'definition-$stamp',
           petId: petId,
           title: title,
-          subtitle: '按计划重复的照护任务',
+          subtitle: subtitle.trim().isEmpty ? '按计划重复的照护任务' : subtitle,
           type: type,
           defaultTime: time,
-          priority: TaskPriority.suggested,
+          priority: priority,
           weekdays: weekdays,
         ),
       );
@@ -1998,11 +2063,11 @@ class AppState extends ChangeNotifier {
           definitionId: '',
           petId: petId,
           title: title,
-          subtitle: '一次性养护任务',
+          subtitle: subtitle.trim().isEmpty ? '一次性养护任务' : subtitle,
           time: time,
           type: type,
           date: taskDate,
-          priority: TaskPriority.suggested,
+          priority: priority,
           recurring: false,
         ),
       );
@@ -2754,13 +2819,21 @@ List<PetRoom> seedRooms() {
       name: '爬宠房',
       type: '温控房间',
       notes: '独立温控与排风，适合守宫、蛇和陆龟。',
+      icon: Icons.thermostat_outlined,
     ),
-    PetRoom(id: 'room-living', name: '客厅', type: '公共空间', notes: '鸟类与家庭成员活动区域。'),
+    PetRoom(
+      id: 'room-living',
+      name: '客厅',
+      type: '公共空间',
+      notes: '鸟类与家庭成员活动区域。',
+      icon: Icons.home_outlined,
+    ),
     PetRoom(
       id: 'room-aquatic',
       name: '水族区',
       type: '水族空间',
       notes: '鱼缸、过滤与备用电源集中区域。',
+      icon: Icons.water_drop_outlined,
     ),
   ];
 }

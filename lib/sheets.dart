@@ -277,10 +277,47 @@ class TaskDetailSheet extends StatefulWidget {
 }
 
 class _TaskDetailSheetState extends State<TaskDetailSheet> {
+  final _temperatureController = TextEditingController();
+  final _humidityController = TextEditingController();
+  final _waterTemperatureController = TextEditingController();
+  final _phController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _foodAmountController = TextEditingController();
   final _noteController = TextEditingController();
+  String? _foodId;
+  String _healthStatus = '状态稳定';
+  String _cleanScope = '日常清洁';
+  String _cleanResult = '已完成';
+  String _deviceKind = '温控设备';
+  String _deviceStatus = '运行正常';
+
+  PetProfile get _pet => widget.state.petById(widget.task.petId);
+
+  List<FoodSupply> get _foodOptions {
+    return widget.state.foodSupplies
+        .where((food) => food.petId == widget.task.petId && food.kind == '食物')
+        .toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final foods = _foodOptions;
+    _foodId = foods.firstOrNull?.id;
+    if (_foodId != null) {
+      final food = foods.firstWhere((item) => item.id == _foodId);
+      _foodAmountController.text = _formatNumber(food.amountPerMeal);
+    }
+  }
 
   @override
   void dispose() {
+    _temperatureController.dispose();
+    _humidityController.dispose();
+    _waterTemperatureController.dispose();
+    _phController.dispose();
+    _weightController.dispose();
+    _foodAmountController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -292,7 +329,7 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
     final done = task.status == TaskStatus.done;
     return AppSheetFrame(
       title: task.title,
-      maxHeightFactor: 0.66,
+      maxHeightFactor: 0.88,
       footer: done
           ? PrimaryButton(
               label: '恢复为待完成',
@@ -301,86 +338,446 @@ class _TaskDetailSheetState extends State<TaskDetailSheet> {
                 showAppMessageAndPop(context, '任务已恢复为待完成');
               },
             )
-          : Row(
-              children: [
-                Expanded(
-                  child: PrimaryButton(
-                    label: '跳过并说明',
-                    ghost: true,
-                    onPressed: () {
-                      widget.state.skipTask(
-                        task.id,
-                        note: _noteController.text,
-                      );
-                      showAppMessageAndPop(context, '已跳过，原因可在任务历史中补充');
-                    },
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: PrimaryButton(
-                    label: '完成',
-                    onPressed: () {
-                      widget.state.completeTask(
-                        task.id,
-                        note: _noteController.text,
-                      );
-                      showAppMessageAndPop(context, '完成记录已保存到本地');
-                    },
-                  ),
-                ),
-              ],
-            ),
+          : PrimaryButton(label: '完成', onPressed: _complete),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Callout(message: '${pet.name} · ${task.time} · ${task.type}'),
-          if (task.latestRun != null) ...[
-            const SizedBox(height: 8),
-            Callout(
-              type: CalloutType.neutral,
-              message:
-                  '最近执行：${switch (task.latestRun!.action) {
-                    TaskRunAction.completed => '已完成',
-                    TaskRunAction.skipped => '已跳过',
-                    TaskRunAction.reopened => '已撤销完成',
-                  }} · ${PetDates.relativeDateTime(task.latestRun!.performedAt)}'
-                  '${task.latestRun!.note.isEmpty ? '' : ' · ${task.latestRun!.note}'}',
+          _TaskContextCard(task: task, pet: pet),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: PaperCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '任务说明',
+                    style: AppText.body(12.5, weight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    task.subtitle.trim().isEmpty ? '暂无任务说明' : task.subtitle,
+                    style: AppText.body(
+                      11.5,
+                      color: AppColors.muted,
+                      height: 1.7,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (!done) ...[
+            const SizedBox(height: 14),
+            ..._buildOperationFields(task),
+            const SizedBox(height: 14),
+            FormSection(
+              label: '补充说明（可选）',
+              child: TextField(
+                controller: _noteController,
+                minLines: 2,
+                maxLines: 4,
+                style: AppText.body(13.5),
+                decoration: const InputDecoration(hintText: '记录额外观察或特殊情况'),
+              ),
             ),
           ],
-          const SizedBox(height: 12),
-          PaperCard(
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildOperationFields(CareTask task) {
+    final fields = <Widget>[];
+    switch (task.type) {
+      case '环境':
+        fields.add(
+          Row(
+            children: [
+              Expanded(
+                child: _numberField(
+                  label: '温度（°C）',
+                  controller: _temperatureController,
+                  hint: '29.0',
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _numberField(
+                  label: '湿度（%）',
+                  controller: _humidityController,
+                  hint: '58',
+                ),
+              ),
+            ],
+          ),
+        );
+        break;
+      case '水族':
+        fields.add(
+          Row(
+            children: [
+              Expanded(
+                child: _numberField(
+                  label: '水温（°C）',
+                  controller: _waterTemperatureController,
+                  hint: '26.0',
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _numberField(
+                  label: 'pH',
+                  controller: _phController,
+                  hint: '7.2',
+                ),
+              ),
+            ],
+          ),
+        );
+        break;
+      case '喂食':
+        final foods = _foodOptions;
+        if (foods.isEmpty) {
+          fields.add(
+            const Callout(message: '当前动物还没有食物库存，请先到“食物计划”添加食物，再执行喂食任务。'),
+          );
+        } else {
+          fields.add(
+            FormSection(
+              label: '食用库存',
+              child: BottomSelectField<String>(
+                title: '选择食物库存',
+                value: _foodId ?? foods.first.id,
+                icon: Icons.restaurant_outlined,
+                options: [
+                  for (final food in foods)
+                    BottomSelectOption(
+                      value: food.id,
+                      label: food.name,
+                      subtitle:
+                          '剩余 ${_formatNumber(food.remainingAmount)} ${food.unit}',
+                    ),
+                ],
+                onChanged: (value) {
+                  setState(() => _foodId = value);
+                  final food = foods.firstWhere((item) => item.id == value);
+                  _foodAmountController.text = _formatNumber(
+                    food.amountPerMeal,
+                  );
+                },
+              ),
+            ),
+          );
+          fields.add(const SizedBox(height: 10));
+          fields.add(
+            _numberField(
+              label: '本次用量',
+              controller: _foodAmountController,
+              hint: '0',
+            ),
+          );
+        }
+        break;
+      case '健康':
+        fields.add(
+          FormSection(
+            label: '健康状态',
+            child: BottomSelectField<String>(
+              title: '选择健康状态',
+              value: _healthStatus,
+              icon: Icons.health_and_safety_outlined,
+              options: const ['状态稳定', '需要观察', '异常变化']
+                  .map(
+                    (value) => BottomSelectOption(value: value, label: value),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _healthStatus = value),
+            ),
+          ),
+        );
+        fields.add(const SizedBox(height: 10));
+        fields.add(
+          _numberField(
+            label: '体重（g）',
+            controller: _weightController,
+            hint: '例如：62',
+          ),
+        );
+        break;
+      case '称重':
+        fields.add(
+          _numberField(
+            label: '体重（g）',
+            controller: _weightController,
+            hint: '例如：62',
+          ),
+        );
+        break;
+      case '清洁':
+        fields.add(
+          FormSection(
+            label: '清洁范围',
+            child: BottomSelectField<String>(
+              title: '选择清洁范围',
+              value: _cleanScope,
+              icon: Icons.cleaning_services_outlined,
+              options: const ['日常清洁', '食盆与饮水器', '生活区域', '笼舍 / 缸体', '全面清洁']
+                  .map(
+                    (value) => BottomSelectOption(value: value, label: value),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _cleanScope = value),
+            ),
+          ),
+        );
+        fields.add(const SizedBox(height: 10));
+        fields.add(
+          FormSection(
+            label: '清洁结果',
+            child: BottomSelectField<String>(
+              title: '选择清洁结果',
+              value: _cleanResult,
+              icon: Icons.task_alt_rounded,
+              options: const ['已完成', '需要复看']
+                  .map(
+                    (value) => BottomSelectOption(value: value, label: value),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _cleanResult = value),
+            ),
+          ),
+        );
+        break;
+      case '设备':
+        fields.add(
+          FormSection(
+            label: '设备类型',
+            child: BottomSelectField<String>(
+              title: '选择设备类型',
+              value: _deviceKind,
+              icon: Icons.devices_other_outlined,
+              options: const ['温控设备', '过滤 / 水泵', '照明设备', '通风设备']
+                  .map(
+                    (value) => BottomSelectOption(value: value, label: value),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _deviceKind = value),
+            ),
+          ),
+        );
+        fields.add(const SizedBox(height: 10));
+        fields.add(
+          FormSection(
+            label: '运行状态',
+            child: BottomSelectField<String>(
+              title: '选择运行状态',
+              value: _deviceStatus,
+              icon: Icons.monitor_heart_outlined,
+              options: const ['运行正常', '需要维护', '异常']
+                  .map(
+                    (value) => BottomSelectOption(value: value, label: value),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _deviceStatus = value),
+            ),
+          ),
+        );
+        break;
+    }
+    return fields;
+  }
+
+  Widget _numberField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+  }) {
+    return FormSection(
+      label: label,
+      child: TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        style: AppText.number(14),
+        decoration: InputDecoration(hintText: hint),
+      ),
+    );
+  }
+
+  void _complete() {
+    final task = widget.task;
+    final pet = _pet;
+    final noteParts = <String>[];
+    switch (task.type) {
+      case '环境':
+        final temperature = double.tryParse(_temperatureController.text);
+        final humidity = double.tryParse(_humidityController.text);
+        if (temperature == null || humidity == null) {
+          showAppMessage(context, '请填写温度和湿度');
+          return;
+        }
+        widget.state.updatePetMetrics(
+          pet.id,
+          temperature: '${_formatNumber(temperature)}°C',
+          humidity: '${_formatNumber(humidity)}%',
+        );
+        noteParts.add('温度 ${_formatNumber(temperature)}°C');
+        noteParts.add('湿度 ${_formatNumber(humidity)}%');
+        break;
+      case '水族':
+        final waterTemperature = double.tryParse(
+          _waterTemperatureController.text,
+        );
+        if (waterTemperature == null) {
+          showAppMessage(context, '请填写水温');
+          return;
+        }
+        widget.state.updatePetMetrics(
+          pet.id,
+          temperature: '${_formatNumber(waterTemperature)}°C',
+        );
+        noteParts.add('水温 ${_formatNumber(waterTemperature)}°C');
+        final ph = double.tryParse(_phController.text);
+        if (ph != null) noteParts.add('pH ${_formatNumber(ph)}');
+        break;
+      case '喂食':
+        final foods = _foodOptions;
+        if (foods.isEmpty) {
+          showAppMessage(context, '请先在食物计划中补充食物库存');
+          return;
+        }
+        final amount = double.tryParse(_foodAmountController.text);
+        if (_foodId == null || amount == null || amount <= 0) {
+          showAppMessage(context, '请填写本次喂食用量');
+          return;
+        }
+        widget.state.consumeFoodSupply(_foodId!, amount);
+        final food = foods.firstWhere((item) => item.id == _foodId);
+        noteParts.add('${food.name} ${_formatNumber(amount)} ${food.unit}');
+        break;
+      case '健康':
+        noteParts.add('健康状态 $_healthStatus');
+        _appendWeight(noteParts, pet);
+        break;
+      case '称重':
+        if (double.tryParse(_weightController.text) == null) {
+          showAppMessage(context, '请填写本次体重');
+          return;
+        }
+        _appendWeight(noteParts, pet);
+        break;
+      case '清洁':
+        noteParts.add('清洁范围 $_cleanScope');
+        noteParts.add('清洁结果 $_cleanResult');
+        break;
+      case '设备':
+        noteParts.add('设备 $_deviceKind');
+        noteParts.add('运行状态 $_deviceStatus');
+        break;
+    }
+    if (_noteController.text.trim().isNotEmpty) {
+      noteParts.add(_noteController.text.trim());
+    }
+    widget.state.completeTask(task.id, note: noteParts.join('，'));
+    showAppMessageAndPop(context, '完成记录已保存');
+  }
+
+  void _appendWeight(List<String> noteParts, PetProfile pet) {
+    final weight = double.tryParse(_weightController.text);
+    if (weight == null) return;
+    widget.state.updatePetMetrics(pet.id, weight: '${_formatNumber(weight)} g');
+    noteParts.add('体重 ${_formatNumber(weight)} g');
+  }
+
+  String _formatNumber(double value) {
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+  }
+}
+
+class _TaskContextCard extends StatelessWidget {
+  const _TaskContextCard({required this.task, required this.pet});
+
+  final CareTask task;
+  final PetProfile pet;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: pet.species.gradient,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: pet.species.ink.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.58),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: AnimalArt(species: pet.species, size: 25),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '执行说明',
-                  style: AppText.body(12.5, weight: FontWeight.w600),
+                  pet.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.display(16),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 2),
                 Text(
-                  done
-                      ? '${task.subtitle}。该任务已完成，执行时间和备注会保留在任务历史中。'
-                      : '${task.subtitle}。完成后将保留时间、执行人和备注，不会覆盖上一周期记录。',
-                  style: AppText.body(
-                    11.5,
-                    color: AppColors.muted,
-                    height: 1.7,
-                  ),
+                  pet.species.label,
+                  style: AppText.body(9.5, color: AppColors.muted),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          FormSection(
-            label: '备注（可选）',
-            child: TextField(
-              controller: _noteController,
-              minLines: 3,
-              maxLines: 4,
-              style: AppText.body(13.5),
-              decoration: const InputDecoration(hintText: '例如：温度 29°C，状态活跃'),
-            ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.schedule_rounded,
+                    size: 13,
+                    color: AppColors.muted,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(task.time, style: AppText.number(10.5)),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.paper.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: pet.species.ink.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Text(
+                  task.type,
+                  style: AppText.body(
+                    9,
+                    color: pet.species.ink,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -648,9 +1045,17 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   final _descriptionController = TextEditingController();
   final _picker = ImagePicker();
   String? _photoPath;
-  DateTime? _followUpAt;
+  DateTime? _followUpDate;
+  TimeOfDay? _followUpTime;
   bool _contactedVet = false;
   bool _savingPhoto = false;
+
+  DateTime? get _followUpAt {
+    final date = _followUpDate;
+    final time = _followUpTime;
+    if (date == null || time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
 
   @override
   void dispose() {
@@ -847,46 +1252,26 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
         ),
         FormSection(
           label: _tag == '需要复看' ? '复看时间' : '复看时间（可选）',
-          child: GestureDetector(
-            onTap: _pickFollowUp,
-            child: Container(
-              height: 46,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: AppColors.paper,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.hair),
+          child: Column(
+            children: [
+              _followUpPicker(
+                icon: Icons.calendar_month_outlined,
+                caption: '年月日',
+                value: _followUpDate == null
+                    ? '选择日期'
+                    : PetDates.reportDate(_followUpDate!),
+                onTap: _pickFollowUpDate,
               ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.schedule_outlined,
-                    size: 18,
-                    color: AppColors.muted,
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      _followUpAt == null
-                          ? '选择日期和时间'
-                          : '${PetDates.relativeDateTime(_followUpAt!)} · '
-                                '${PetDates.clock(_followUpAt!)}',
-                      style: AppText.body(
-                        13,
-                        color: _followUpAt == null
-                            ? AppColors.faint
-                            : AppColors.ink,
-                      ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: AppColors.faint,
-                  ),
-                ],
+              const SizedBox(height: 8),
+              _followUpPicker(
+                icon: Icons.schedule_outlined,
+                caption: '时分',
+                value: _followUpTime == null
+                    ? '选择时间'
+                    : _formatFollowUpTime(_followUpTime!),
+                onTap: _pickFollowUpTime,
               ),
-            ),
+            ],
           ),
         ),
         InkWell(
@@ -923,6 +1308,14 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   }
 
   void _save() {
+    if (_tag == '需要复看' && _followUpAt == null) {
+      showAppMessage(context, '请选择复看日期和时间');
+      return;
+    }
+    if ((_followUpDate == null) != (_followUpTime == null)) {
+      showAppMessage(context, '请同时选择复看日期和时间');
+      return;
+    }
     widget.state.addHealthLog(
       petId: _petId,
       tag: _tag,
@@ -971,37 +1364,120 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
     }
   }
 
-  Future<void> _pickFollowUp() async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _followUpAt ?? now.add(const Duration(days: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-      helpText: '选择复看日期',
-      cancelText: '取消',
-      confirmText: '下一步',
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(
-        _followUpAt ?? now.add(const Duration(hours: 1)),
+  Widget _followUpPicker({
+    required IconData icon,
+    required String caption,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: AppColors.paper,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.hair),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.muted),
+            const SizedBox(width: 9),
+            Text(
+              caption,
+              style: AppText.body(
+                10.5,
+                color: AppColors.muted,
+                weight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: AppText.body(13, color: AppColors.ink),
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppColors.faint,
+            ),
+          ],
+        ),
       ),
-      helpText: '选择复看时间',
-      cancelText: '取消',
-      confirmText: '确定',
     );
-    if (time == null || !mounted) return;
-    setState(() {
-      _followUpAt = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
-    });
+  }
+
+  Future<void> _pickFollowUpDate() async {
+    final now = DateTime.now();
+    final today = PetDates.dateOnly(now);
+    var draft = _followUpDate ?? today.add(const Duration(days: 1));
+    final selected = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AppSheetFrame(
+          title: '选择复看日期',
+          maxHeightFactor: 0.74,
+          shrinkToContent: true,
+          footer: PrimaryButton(
+            label: '确认日期',
+            onPressed: () => Navigator.pop(context, draft),
+          ),
+          child: CalendarDatePicker(
+            initialDate: draft,
+            firstDate: today,
+            lastDate: today.add(const Duration(days: 365)),
+            onDateChanged: (value) => setModalState(() => draft = value),
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _followUpDate = PetDates.dateOnly(selected));
+    }
+  }
+
+  Future<void> _pickFollowUpTime() async {
+    var draft =
+        _followUpTime ??
+        TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 1)));
+    final selected = await showModalBottomSheet<TimeOfDay>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AppSheetFrame(
+          title: '选择复看时间',
+          maxHeightFactor: 0.58,
+          shrinkToContent: true,
+          footer: PrimaryButton(
+            label: '确认时间',
+            onPressed: () => Navigator.pop(context, draft),
+          ),
+          child: SizedBox(
+            height: 180,
+            child: HourMinutePicker(
+              initialTime: draft,
+              onChanged: (value) => setModalState(() => draft = value),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) setState(() => _followUpTime = selected);
+  }
+
+  String _formatFollowUpTime(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
   }
 }
 

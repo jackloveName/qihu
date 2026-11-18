@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
@@ -550,13 +551,11 @@ class TaskTile extends StatelessWidget {
     super.key,
     required this.task,
     required this.pet,
-    required this.onToggle,
     required this.onOpen,
   });
 
   final CareTask task;
   final PetProfile pet;
-  final VoidCallback onToggle;
   final VoidCallback onOpen;
 
   @override
@@ -595,14 +594,21 @@ class TaskTile extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  gradient: pet.species.gradient,
+                  color: priorityWash,
                   borderRadius: BorderRadius.circular(15),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.55),
+                    color: priorityColor.withValues(alpha: 0.18),
                   ),
                 ),
                 alignment: Alignment.center,
-                child: AnimalArt(species: pet.species, size: 29),
+                child: Text(
+                  task.time,
+                  style: AppText.number(
+                    10.5,
+                    color: overdue ? AppColors.rose : priorityColor,
+                    weight: FontWeight.w700,
+                  ),
+                ),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -613,141 +619,94 @@ class TaskTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Semantics(
-                        label: '$priorityLabel ${pet.name}：${task.title}',
-                        child: Row(
+                        label:
+                            '$priorityLabel ${pet.name}：${task.type} ${task.title}',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: priorityWash,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                priorityLabel,
-                                style: AppText.body(
-                                  8,
-                                  color: priorityColor,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text.rich(
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: '${pet.name}：',
-                                      style: AppText.body(
-                                        13,
-                                        color: pet.species.ink,
-                                        weight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: task.title,
-                                      style: AppText.body(
-                                        14,
-                                        weight: FontWeight.w700,
-                                        decoration: done
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                        decorationColor: AppColors.faint,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        task.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.body(9.5, color: AppColors.faint),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    task.time,
-                    style: AppText.number(
-                      11.5,
-                      color: overdue ? AppColors.rose : AppColors.ink2,
-                      weight: overdue ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Semantics(
-                    button: true,
-                    label: done ? '恢复任务' : '完成任务',
-                    child: InkResponse(
-                      onTap: onToggle,
-                      radius: 24,
-                      child: done
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 3,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.check_rounded,
-                                    size: 14,
-                                    color: AppColors.brand2,
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
                                   ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '已完成',
+                                  decoration: BoxDecoration(
+                                    color: priorityWash,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    priorityLabel,
                                     style: AppText.body(
-                                      9.5,
-                                      color: AppColors.muted,
+                                      8,
+                                      color: priorityColor,
+                                      weight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 92,
+                                  ),
+                                  child: Text(
+                                    '${pet.name}：',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppText.body(
+                                      11.5,
+                                      color: pet.species.ink,
                                       weight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    task.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppText.body(
+                                      13.5,
+                                      weight: FontWeight.w700,
+                                      decoration: done
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor: AppColors.faint,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 5),
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: '${task.type}：',
+                                    style: AppText.body(
+                                      10,
+                                      color: AppColors.ink2,
+                                      weight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: task.subtitle,
+                                    style: AppText.body(
+                                      10,
+                                      color: AppColors.muted,
                                     ),
                                   ),
                                 ],
                               ),
-                            )
-                          : AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 58,
-                              height: 36,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: AppColors.paper,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.brandLine,
-                                  width: 1.4,
-                                ),
-                              ),
-                              child: Text(
-                                '完成',
-                                style: AppText.body(
-                                  10.5,
-                                  color: AppColors.brand,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                    ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -1748,7 +1707,7 @@ class AppSheetFrame extends StatelessWidget {
     required this.child,
     this.footer,
     this.maxHeightFactor = 0.92,
-    this.shrinkToContent = false,
+    this.shrinkToContent = true,
   });
 
   final String title;
@@ -1844,6 +1803,135 @@ class AppSheetFrame extends StatelessWidget {
               child: sheet,
             )
           : SizedBox(height: availableHeight * maxHeightFactor, child: sheet),
+    );
+  }
+}
+
+class HourMinutePicker extends StatefulWidget {
+  const HourMinutePicker({
+    super.key,
+    required this.initialTime,
+    required this.onChanged,
+    this.height = 180,
+  });
+
+  final TimeOfDay initialTime;
+  final ValueChanged<TimeOfDay> onChanged;
+  final double height;
+
+  @override
+  State<HourMinutePicker> createState() => _HourMinutePickerState();
+}
+
+class _HourMinutePickerState extends State<HourMinutePicker> {
+  late final FixedExtentScrollController _hourController =
+      FixedExtentScrollController(initialItem: widget.initialTime.hour);
+  late final FixedExtentScrollController _minuteController =
+      FixedExtentScrollController(initialItem: widget.initialTime.minute);
+  late int _hour = widget.initialTime.hour;
+  late int _minute = widget.initialTime.minute;
+
+  @override
+  void dispose() {
+    _hourController.dispose();
+    _minuteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const itemExtent = 44.0;
+    return SizedBox(
+      height: widget.height,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: (widget.height - itemExtent) / 2,
+            height: itemExtent,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.paper2,
+                borderRadius: BorderRadius.circular(12),
+                border: const Border.symmetric(
+                  horizontal: BorderSide(color: AppColors.hair),
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _numberWheel(
+                  controller: _hourController,
+                  count: 24,
+                  selected: _hour,
+                  onSelected: (value) {
+                    setState(() => _hour = value);
+                    widget.onChanged(TimeOfDay(hour: _hour, minute: _minute));
+                  },
+                ),
+              ),
+              SizedBox(
+                width: 28,
+                child: Center(
+                  child: Text(
+                    '：',
+                    style: AppText.number(
+                      21,
+                      color: AppColors.ink2,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _numberWheel(
+                  controller: _minuteController,
+                  count: 60,
+                  selected: _minute,
+                  onSelected: (value) {
+                    setState(() => _minute = value);
+                    widget.onChanged(TimeOfDay(hour: _hour, minute: _minute));
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _numberWheel({
+    required FixedExtentScrollController controller,
+    required int count,
+    required int selected,
+    required ValueChanged<int> onSelected,
+  }) {
+    return CupertinoPicker(
+      scrollController: controller,
+      itemExtent: 44,
+      useMagnifier: true,
+      magnification: 1.08,
+      selectionOverlay: const SizedBox.shrink(),
+      onSelectedItemChanged: onSelected,
+      children: [
+        for (var value = 0; value < count; value++)
+          Center(
+            child: Text(
+              value.toString().padLeft(2, '0'),
+              textAlign: TextAlign.center,
+              style: AppText.number(
+                22,
+                color: value == selected ? AppColors.ink : AppColors.muted,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
