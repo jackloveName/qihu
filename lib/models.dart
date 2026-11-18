@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ class PetSpecies {
     required this.code,
     this.builtIn = true,
     this.note = '',
+    this.starterTasks = const [],
   });
 
   final String id;
@@ -31,6 +33,7 @@ class PetSpecies {
   final String code;
   final bool builtIn;
   final String note;
+  final List<StarterCareTask> starterTasks;
 
   LinearGradient get gradient => LinearGradient(
     begin: Alignment.topLeft,
@@ -49,6 +52,7 @@ class PetSpecies {
     'code': code,
     'builtIn': builtIn,
     'note': note,
+    'starterTasks': starterTasks.map((task) => task.toJson()).toList(),
   };
 
   factory PetSpecies.fromJson(Map<String, dynamic> json) {
@@ -63,6 +67,9 @@ class PetSpecies {
       code: json['code'] as String? ?? 'CUSTOM',
       builtIn: json['builtIn'] as bool? ?? false,
       note: json['note'] as String? ?? '',
+      starterTasks: (json['starterTasks'] as List<dynamic>? ?? const [])
+          .map((item) => StarterCareTask.fromJson(item as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -590,9 +597,33 @@ class StarterCareTask {
   final String type;
   final String time;
   final TaskPriority priority;
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'subtitle': subtitle,
+    'type': type,
+    'time': time,
+    'priority': priority.name,
+  };
+
+  factory StarterCareTask.fromJson(Map<String, dynamic> json) {
+    return StarterCareTask(
+      title: json['title'] as String? ?? '固定养护任务',
+      subtitle: json['subtitle'] as String? ?? '',
+      type: json['type'] as String? ?? '照护',
+      time: json['time'] as String? ?? '18:00',
+      priority: TaskPriority.values.firstWhere(
+        (item) => item.name == json['priority'],
+        orElse: () => TaskPriority.suggested,
+      ),
+    );
+  }
 }
 
 List<StarterCareTask> starterCareTasksFor(PetSpecies species) {
+  if (species.starterTasks.isNotEmpty) {
+    return List<StarterCareTask>.from(species.starterTasks);
+  }
   return [
     const StarterCareTask(
       title: '完成首次环境检查',
@@ -1863,6 +1894,7 @@ class AppState extends ChangeNotifier {
     required Color backgroundEnd,
     required Color ink,
     String note = '',
+    List<StarterCareTask> starterTasks = const [],
   }) {
     final now = DateTime.now();
     final template = PetSpecies(
@@ -1876,8 +1908,44 @@ class AppState extends ChangeNotifier {
       code: 'CUSTOM',
       builtIn: false,
       note: note.trim(),
+      starterTasks: List.unmodifiable(starterTasks),
     );
     speciesTemplates.add(template);
+    notifyListeners();
+    unawaited(_persist());
+    return template;
+  }
+
+  PetSpecies updateSpeciesTemplate({
+    required PetSpecies existing,
+    required String label,
+    required String category,
+    required String artStyle,
+    required Color background,
+    required Color backgroundEnd,
+    required Color ink,
+    String note = '',
+    List<StarterCareTask> starterTasks = const [],
+  }) {
+    final template = PetSpecies(
+      id: existing.id,
+      label: label.trim(),
+      category: category.trim().isEmpty ? '异宠' : category.trim(),
+      background: background,
+      backgroundEnd: backgroundEnd,
+      ink: ink,
+      artStyle: artStyle,
+      code: existing.builtIn ? 'CUSTOM' : existing.code,
+      builtIn: false,
+      note: note.trim(),
+      starterTasks: List.unmodifiable(starterTasks),
+    );
+    final index = speciesTemplates.indexWhere((item) => item.id == existing.id);
+    if (index >= 0) {
+      speciesTemplates[index] = template;
+    } else {
+      speciesTemplates.add(template);
+    }
     notifyListeners();
     unawaited(_persist());
     return template;
@@ -2242,18 +2310,24 @@ class AppState extends ChangeNotifier {
           (data['speciesTemplates'] as List<dynamic>? ?? [])
               .map((item) => PetSpecies.fromJson(item as Map<String, dynamic>))
               .toList();
+      final restoredById = {
+        for (final template in restoredTemplates) template.id: template,
+      };
+      final builtInIds = {
+        for (final template in PetSpecies.builtIns) template.id,
+      };
       speciesTemplates
         ..clear()
         ..addAll(
-          PetSpecies.builtIns.where(
-            (template) => !hiddenSpeciesTemplateIds.contains(template.id),
-          ),
+          PetSpecies.builtIns
+              .where(
+                (template) => !hiddenSpeciesTemplateIds.contains(template.id),
+              )
+              .map((template) => restoredById[template.id] ?? template),
         )
         ..addAll(
           restoredTemplates.where(
-            (template) => !PetSpecies.builtIns.any(
-              (builtIn) => builtIn.id == template.id,
-            ),
+            (template) => !builtInIds.contains(template.id),
           ),
         );
       rooms
@@ -2333,6 +2407,57 @@ class AppState extends ChangeNotifier {
 
   String exportCloudSnapshot() => jsonEncode(_snapshotData());
 
+  Future<void> preparePhotosForCloud() async {
+    var changed = false;
+    final obsoletePaths = <String>[];
+    for (var index = 0; index < pets.length; index++) {
+      final pet = pets[index];
+      final photos = <String>[];
+      for (final photo in pet.photos) {
+        if (photo.startsWith('data:image/') ||
+            photo.startsWith('http://') ||
+            photo.startsWith('https://')) {
+          photos.add(photo);
+          continue;
+        }
+        try {
+          final bytes = await File(photo).readAsBytes();
+          final extension = photo.split('.').last.toLowerCase();
+          final mimeType = switch (extension) {
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            _ => 'image/jpeg',
+          };
+          photos.add('data:$mimeType;base64,${base64Encode(bytes)}');
+          if (photo
+              .split(Platform.pathSeparator)
+              .last
+              .startsWith('pet_photo_')) {
+            obsoletePaths.add(photo);
+          }
+          changed = true;
+        } on Object {
+          // Keep remote or readable photos; unavailable local files are skipped.
+        }
+      }
+      if (photos.length != pet.photos.length ||
+          !photos.indexed.every((entry) => entry.$2 == pet.photos[entry.$1])) {
+        pets[index] = pet.copyWith(photos: photos);
+      }
+    }
+    for (final path in obsoletePaths) {
+      try {
+        await File(path).delete();
+      } on Object {
+        // The photo has already been embedded in the cloud snapshot.
+      }
+    }
+    if (changed) {
+      notifyListeners();
+      await _persist();
+    }
+  }
+
   Future<bool> restoreCloudSnapshot(Object? value) async {
     final raw = _extractSnapshotJson(value);
     if (raw == null || !_restore(raw)) return false;
@@ -2373,14 +2498,21 @@ class AppState extends ChangeNotifier {
   Future<void> _writeSnapshot() async {
     final preferences = _preferences;
     if (preferences == null) return;
-    await preferences.setString(_storageKey, jsonEncode(_snapshotData()));
+    await preferences.setString(
+      _storageKey,
+      jsonEncode(_snapshotData(includePhotos: false)),
+    );
   }
 
-  Map<String, dynamic> _snapshotData() {
+  Map<String, dynamic> _snapshotData({bool includePhotos = true}) {
     return {
       'schemaVersion': _schemaVersion,
       'updatedAt': DateTime.now().toUtc().toIso8601String(),
-      'pets': pets.map((pet) => pet.toJson()).toList(),
+      'pets': pets.map((pet) {
+        final data = pet.toJson();
+        if (!includePhotos) data['photos'] = <String>[];
+        return data;
+      }).toList(),
       'speciesTemplates': speciesTemplates
           .where((template) => !template.builtIn)
           .map((template) => template.toJson())

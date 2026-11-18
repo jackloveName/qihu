@@ -41,6 +41,7 @@ class AccountDataSync {
     if (_restoring || !state.signedIn || state.isGuest) return;
     _restoring = true;
     try {
+      await state.preparePhotosForCloud();
       final remote = await _config.readUser(storageKey, _token!);
       final restored = await state.restoreCloudSnapshot(remote);
       if (!restored) await _save();
@@ -68,6 +69,7 @@ class AccountDataSync {
 
   Future<void> _save() async {
     try {
+      await state.preparePhotosForCloud();
       await _config.saveUser(
         key: storageKey,
         value: state.exportCloudSnapshot(),

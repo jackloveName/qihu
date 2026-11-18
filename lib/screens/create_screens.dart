@@ -1,7 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../app_theme.dart';
 import '../date_utils.dart';
@@ -558,23 +559,21 @@ class _AddPetScreenState extends State<AddPetScreen> {
     setState(() => _savingPhotos = true);
     try {
       final images = await _picker.pickMultiImage(
-        imageQuality: 86,
-        maxWidth: 1600,
+        imageQuality: 68,
+        maxWidth: 1200,
       );
       if (images.isEmpty) return;
-      final directory = await getApplicationDocumentsDirectory();
       for (final image in images.take(9 - _photos.length)) {
-        var path = image.path;
-        try {
-          final extension = image.name.split('.').lastOrNull ?? 'jpg';
-          final target =
-              '${directory.path}/pet_photo_${DateTime.now().microsecondsSinceEpoch}.$extension';
-          await image.saveTo(target);
-          path = target;
-        } on Object {
-          // Fall back to the picker path when document storage is unavailable.
-        }
-        _photos.add(path);
+        final bytes = await image.readAsBytes();
+        final extension = image.name.split('.').lastOrNull?.toLowerCase();
+        final mimeType =
+            image.mimeType ??
+            switch (extension) {
+              'png' => 'image/png',
+              'webp' => 'image/webp',
+              _ => 'image/jpeg',
+            };
+        _photos.add('data:$mimeType;base64,${base64Encode(bytes)}');
       }
       if (mounted) setState(() {});
     } on Object {

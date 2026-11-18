@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -32,6 +33,20 @@ class AppLocalImage extends StatelessWidget {
     Widget image;
     if (source.isEmpty) {
       image = _placeholder(Icons.image_outlined);
+    } else if (_isDataImage(source)) {
+      try {
+        final bytes = base64Decode(source.substring(source.indexOf(',') + 1));
+        image = Image.memory(
+          bytes,
+          width: width,
+          height: height,
+          fit: fit,
+          frameBuilder: _frameBuilder,
+          errorBuilder: (_, _, _) => _error(),
+        );
+      } on FormatException {
+        image = _error();
+      }
     } else if (_isNetworkPath(source)) {
       image = Image.network(
         source,
@@ -86,6 +101,10 @@ class AppLocalImage extends StatelessWidget {
   static bool _isNetworkPath(String value) {
     final uri = Uri.tryParse(value);
     return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+  }
+
+  static bool _isDataImage(String value) {
+    return value.startsWith('data:image/') && value.contains(';base64,');
   }
 }
 

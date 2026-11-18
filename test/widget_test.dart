@@ -614,7 +614,7 @@ void main() {
     expect(restored.petById(added.id).startedAt, DateTime(2025, 5, 1));
     expect(restored.petById(added.id).birthday, DateTime(2024, 3, 12));
     expect(restored.petById(added.id).gender, '雌性');
-    expect(restored.petById(added.id).photos.length, 2);
+    expect(restored.petById(added.id).photos, isEmpty);
   });
 
   test('账号云快照可在新设备恢复动物和任务数据', () async {
@@ -625,6 +625,7 @@ void main() {
       environment: '客厅',
       birthday: DateTime(2024, 3, 18),
       gender: '雌性',
+      photos: const ['data:image/png;base64,AA=='],
     )!;
     source.addTask(petId: pet.id, title: '云同步称重', time: '09:30', type: '称重');
     final snapshot = source.exportCloudSnapshot();
@@ -632,6 +633,9 @@ void main() {
     final target = AppState.inMemory(seed: false);
     expect(await target.restoreCloudSnapshot(snapshot), isTrue);
     expect(target.pets.any((item) => item.name == '云同步猫'), isTrue);
+    expect(target.pets.firstWhere((item) => item.name == '云同步猫').photos, [
+      'data:image/png;base64,AA==',
+    ]);
     expect(target.tasks.any((task) => task.title == '云同步称重'), isTrue);
   });
 
@@ -1576,6 +1580,8 @@ void main() {
     expect(find.text('完成首次环境检查'), findsOneWidget);
     expect(find.text('检查温湿度'), findsOneWidget);
     expect(find.text('检查躲避穴'), findsOneWidget);
+    expect(find.text('编辑模板'), findsOneWidget);
+    expect(find.text('删除模板'), findsOneWidget);
   });
 
   test('同一分类的模板使用相同固定任务', () {
@@ -1591,6 +1597,29 @@ void main() {
 
     expect(dogTasks, catTasks);
     expect(geckoTasks, isNot(catTasks));
+  });
+
+  test('自定义模板可以使用自己的固定任务', () {
+    final state = AppState.inMemory(seed: false);
+    final template = state.addSpeciesTemplate(
+      label: '自定义猫',
+      category: '哺乳',
+      artStyle: 'cat',
+      background: const Color(0xFFF2E8DE),
+      backgroundEnd: const Color(0xFFE4D4C3),
+      ink: const Color(0xFF72523C),
+      starterTasks: const [
+        StarterCareTask(
+          title: '梳毛',
+          subtitle: '检查皮肤和毛结',
+          type: '清洁',
+          time: '21:00',
+          priority: TaskPriority.suggested,
+        ),
+      ],
+    );
+
+    expect(starterCareTasksFor(template).map((task) => task.title), ['梳毛']);
   });
 
   test('模板删除会保留至少一个并持久化内置模板隐藏状态', () async {
