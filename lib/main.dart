@@ -329,7 +329,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       TodayScreen(
                         state: widget.state,
                         onOpenTask: _openTask,
-                        onOpenKnowledge: _openKnowledge,
                         onAddPet: _openAddPet,
                       ),
                       AnimalsScreen(

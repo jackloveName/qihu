@@ -345,7 +345,7 @@ void main() {
     expect(state.taskById(task.id)!.latestRun?.note, '温度 29.2°C，湿度 58%');
   });
 
-  testWidgets('首页每日知识可以进入知识库', (tester) async {
+  testWidgets('首页每日知识直接打开当天文章弹窗', (tester) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -364,16 +364,15 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('daily-knowledge')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('养护知识库'), findsOneWidget);
-    expect(find.text('爬宠环境与蜕皮'), findsOneWidget);
-
-    await tester.tap(find.text('爬宠环境与蜕皮'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('观察重点'), findsOneWidget);
-    expect(find.textContaining('Merck Veterinary Manual'), findsWidgets);
+    await tester.pumpAndSettle();
+    final now = DateTime.now();
+    final article =
+        knowledgeArticles[now.difference(DateTime(now.year)).inDays %
+            knowledgeArticles.length];
+    expect(find.byType(AppSheetFrame), findsOneWidget);
+    expect(find.text(article.title), findsWidgets);
+    expect(find.text('加入复看提醒'), findsOneWidget);
+    expect(find.text('养护知识库'), findsNothing);
   });
 
   testWidgets('添加动物页面显示完整资料字段', (tester) async {

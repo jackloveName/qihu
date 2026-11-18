@@ -7,6 +7,7 @@ import '../data/china_cities.dart';
 import '../date_utils.dart';
 import '../knowledge_content.dart';
 import '../models.dart';
+import '../sheets.dart';
 import '../services/auth_service.dart';
 import '../services/local_image_store.dart';
 import '../storage/session_token_store.dart';
@@ -24,13 +25,11 @@ class TodayScreen extends StatelessWidget {
     super.key,
     required this.state,
     required this.onOpenTask,
-    required this.onOpenKnowledge,
     required this.onAddPet,
   });
 
   final AppState state;
   final TaskOpenCallback onOpenTask;
-  final VoidCallback onOpenKnowledge;
   final VoidCallback onAddPet;
 
   @override
@@ -84,9 +83,7 @@ class TodayScreen extends StatelessWidget {
                 ),
               ),
             ),
-          SliverToBoxAdapter(
-            child: _DailyKnowledgeCard(onTap: onOpenKnowledge),
-          ),
+          const SliverToBoxAdapter(child: _DailyKnowledgeCard()),
           if (allDone)
             SliverToBoxAdapter(
               child: _CompletedTodaySection(
@@ -1286,9 +1283,7 @@ class LegacyTodayFootprint extends StatelessWidget {
 }
 
 class _DailyKnowledgeCard extends StatelessWidget {
-  const _DailyKnowledgeCard({required this.onTap});
-
-  final VoidCallback onTap;
+  const _DailyKnowledgeCard();
 
   @override
   Widget build(BuildContext context) {
@@ -1307,7 +1302,10 @@ class _DailyKnowledgeCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             key: const ValueKey('daily-knowledge'),
-            onTap: onTap,
+            onTap: () => showAppSheet(
+              context: context,
+              child: ArticleSheet(article: article),
+            ),
             borderRadius: BorderRadius.circular(20),
             child: Container(
               padding: const EdgeInsets.fromLTRB(13, 11, 11, 11),
