@@ -384,6 +384,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('pet-add-photo')), findsOneWidget);
+    final templateGrid = find.descendant(
+      of: find.widgetWithText(FormSection, '2 · 选择物种模板'),
+      matching: find.byType(GridView),
+    );
+    expect(tester.getSize(templateGrid).height, lessThan(260));
     expect(
       tester.getTopLeft(find.text('1 · 宠物照片（最多 9 张）')).dy,
       lessThan(tester.getTopLeft(find.text('2 · 选择物种模板')).dy),
@@ -610,6 +615,24 @@ void main() {
     expect(restored.petById(added.id).birthday, DateTime(2024, 3, 12));
     expect(restored.petById(added.id).gender, '雌性');
     expect(restored.petById(added.id).photos.length, 2);
+  });
+
+  test('账号云快照可在新设备恢复动物和任务数据', () async {
+    final source = AppState.inMemory(seed: false);
+    final pet = source.addPet(
+      species: PetSpecies.cat,
+      name: '云同步猫',
+      environment: '客厅',
+      birthday: DateTime(2024, 3, 18),
+      gender: '雌性',
+    )!;
+    source.addTask(petId: pet.id, title: '云同步称重', time: '09:30', type: '称重');
+    final snapshot = source.exportCloudSnapshot();
+
+    final target = AppState.inMemory(seed: false);
+    expect(await target.restoreCloudSnapshot(snapshot), isTrue);
+    expect(target.pets.any((item) => item.name == '云同步猫'), isTrue);
+    expect(target.tasks.any((task) => task.title == '云同步称重'), isTrue);
   });
 
   test('知识库包含多物种文章且文章标题不重复', () {

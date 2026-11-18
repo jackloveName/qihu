@@ -2331,6 +2331,22 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  String exportCloudSnapshot() => jsonEncode(_snapshotData());
+
+  Future<bool> restoreCloudSnapshot(Object? value) async {
+    final raw = _extractSnapshotJson(value);
+    if (raw == null || !_restore(raw)) return false;
+    signedIn = true;
+    isGuest = false;
+    guestExpiresAt = null;
+    onboardingCompleted = true;
+    memberOnboardingCompleted = true;
+    ensureOccurrencesThrough();
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
   Future<void> _persist() {
     final preferences = _preferences;
     if (preferences == null) return Future.value();
@@ -2357,8 +2373,13 @@ class AppState extends ChangeNotifier {
   Future<void> _writeSnapshot() async {
     final preferences = _preferences;
     if (preferences == null) return;
-    final data = {
+    await preferences.setString(_storageKey, jsonEncode(_snapshotData()));
+  }
+
+  Map<String, dynamic> _snapshotData() {
+    return {
       'schemaVersion': _schemaVersion,
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
       'pets': pets.map((pet) => pet.toJson()).toList(),
       'speciesTemplates': speciesTemplates
           .where((template) => !template.builtIn)
@@ -2385,7 +2406,31 @@ class AppState extends ChangeNotifier {
       'careTags': careTags,
       'borrowFlag': borrowFlag,
     };
-    await preferences.setString(_storageKey, jsonEncode(data));
+  }
+
+  static String? _extractSnapshotJson(Object? value, [int depth = 0]) {
+    if (value == null || depth > 6) return null;
+    if (value is String) {
+      final text = value.trim();
+      if (text.isEmpty) return null;
+      try {
+        final decoded = jsonDecode(text);
+        final nested = _extractSnapshotJson(decoded, depth + 1);
+        return nested ?? text;
+      } on FormatException {
+        return null;
+      }
+    }
+    if (value is! Map) return null;
+    final map = value.map((key, item) => MapEntry(key.toString(), item));
+    if (map.containsKey('schemaVersion') || map.containsKey('pets')) {
+      return jsonEncode(map);
+    }
+    for (final key in const ['data', 'paramValue', 'value', 'content']) {
+      final nested = _extractSnapshotJson(map[key], depth + 1);
+      if (nested != null) return nested;
+    }
+    return null;
   }
 
   static DateTime _dateOnly(DateTime value) {

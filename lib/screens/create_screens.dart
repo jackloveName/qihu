@@ -172,80 +172,101 @@ class _AddPetScreenState extends State<AddPetScreen> {
                             title: '没有匹配的模板',
                             message: '可以换个关键词，或在设置中新增自定义模板。',
                           )
-                        : GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: templates.length,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 8,
-                                  mainAxisSpacing: 8,
-                                  childAspectRatio: 1.06,
-                                ),
-                            itemBuilder: (context, index) {
-                              final species = templates[index];
-                              final selected = species == _species;
-                              return GestureDetector(
-                                onTap: () {
-                                  _dismissInputFocus();
-                                  setState(() => _species = species);
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  padding: const EdgeInsets.fromLTRB(
-                                    7,
-                                    11,
-                                    7,
-                                    8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: selected
-                                        ? null
-                                        : species.gradient,
-                                    color: selected
-                                        ? AppColors.brandWash
-                                        : null,
-                                    borderRadius: BorderRadius.circular(15),
-                                    border: Border.all(
-                                      color: selected
-                                          ? AppColors.brand
-                                          : AppColors.hair,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      AnimalArt(
-                                        species: species,
-                                        size: 29,
-                                        color: selected
-                                            ? AppColors.brand
-                                            : species.ink,
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final visibleRows = templates.length <= 3 ? 1 : 2;
+                              const spacing = 8.0;
+                              final tileWidth =
+                                  (constraints.maxWidth - spacing * 2) / 3;
+                              final tileHeight = tileWidth / 1.06;
+                              final height =
+                                  tileHeight * visibleRows +
+                                  spacing * (visibleRows - 1);
+                              return SizedBox(
+                                height: height,
+                                child: GridView.builder(
+                                  physics: templates.length > 6
+                                      ? const BouncingScrollPhysics()
+                                      : const NeverScrollableScrollPhysics(),
+                                  itemCount: templates.length,
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 3,
+                                        crossAxisSpacing: spacing,
+                                        mainAxisSpacing: spacing,
+                                        childAspectRatio: 1.06,
                                       ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        species.label,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: AppText.body(
-                                          9.5,
+                                  itemBuilder: (context, index) {
+                                    final species = templates[index];
+                                    final selected = species == _species;
+                                    return GestureDetector(
+                                      onTap: () {
+                                        _dismissInputFocus();
+                                        setState(() => _species = species);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        padding: const EdgeInsets.fromLTRB(
+                                          7,
+                                          11,
+                                          7,
+                                          8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          gradient: selected
+                                              ? null
+                                              : species.gradient,
                                           color: selected
-                                              ? AppColors.brand
-                                              : AppColors.ink2,
-                                          weight: FontWeight.w600,
+                                              ? AppColors.brandWash
+                                              : null,
+                                          borderRadius: BorderRadius.circular(
+                                            15,
+                                          ),
+                                          border: Border.all(
+                                            color: selected
+                                                ? AppColors.brand
+                                                : AppColors.hair,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            AnimalArt(
+                                              species: species,
+                                              size: 29,
+                                              color: selected
+                                                  ? AppColors.brand
+                                                  : species.ink,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              species.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: AppText.body(
+                                                9.5,
+                                                color: selected
+                                                    ? AppColors.brand
+                                                    : AppColors.ink2,
+                                                weight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              species.category,
+                                              style: AppText.body(
+                                                7.8,
+                                                color: AppColors.faint,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        species.category,
-                                        style: AppText.body(
-                                          7.8,
-                                          color: AppColors.faint,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
                               );
                             },

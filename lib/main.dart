@@ -12,6 +12,7 @@ import 'screens/create_screens.dart';
 import 'screens/main_screens.dart';
 import 'screens/stack_screens.dart';
 import 'services/app_update_service.dart';
+import 'services/account_data_sync.dart';
 import 'services/local_image_store.dart';
 import 'services/member_profile_store.dart';
 import 'storage/privacy_consent_store.dart';
@@ -26,6 +27,7 @@ Future<void> main() async {
   if (state.consumeGuestDataReset()) {
     await LocalImageStore.deleteAll();
   }
+  unawaited(AccountDataSync(state).initialize());
   CareReminderObserver(state);
   unawaited(PetNotificationService.syncAll(state, ''));
   runApp(PetCareApp(state: state));
@@ -152,12 +154,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _homeUpdateCheckScheduled = false;
         _scheduleHomeUpdateCheck();
       }
+    } else if (state == AppLifecycleState.paused) {
+      unawaited(AccountDataSync.active?.syncNow());
     }
   }
 
   void _handleNavigationState() {
     final signedInNow = widget.state.signedIn;
     final needsOnboardingNow = widget.state.needsMemberOnboarding;
+    final signedInBefore = _lastSignedIn;
     final signedOutNow = _lastSignedIn && !signedInNow;
     final shouldReturnHome =
         (!_lastSignedIn && signedInNow) ||
@@ -168,6 +173,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (signedOutNow) _homeUpdateCheckScheduled = false;
     if (shouldReturnHome && mounted && _tab != 0) {
       setState(() => _tab = 0);
+    }
+    if (!signedInBefore && signedInNow) {
+      unawaited(AccountDataSync.active?.handleSignIn());
     }
     if (signedInNow && !needsOnboardingNow && _tab == 0) {
       if (shouldReturnHome) _homeUpdateCheckScheduled = false;
