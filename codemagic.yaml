@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       flutter: stable
-      xcode: latest
+      xcode: 27.2
       cocoapods: default
       ios_signing:
         distribution_type: app_store
@@ -19,6 +19,17 @@ workflows:
         - $HOME/.pub-cache
         - $HOME/Library/Caches/CocoaPods
     scripts:
+      - name: Verify iOS build SDK
+        script: |
+          set -eu
+          xcodebuild -version
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          SDK_MAJOR="${SDK_VERSION%%.*}"
+          echo "iOS SDK version: $SDK_VERSION"
+          if [ "$SDK_MAJOR" -lt 27 ]; then
+            echo "iOS 27 SDK or newer is required for App Store submission."
+            exit 1
+          fi
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Install CocoaPods dependencies
