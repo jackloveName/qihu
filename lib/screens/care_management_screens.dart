@@ -92,6 +92,10 @@ class _SpeciesTemplateLibraryScreenState
                     setState(() => _revealedTemplateId = null);
                   }
                 },
+                onOpen: () => showAppSheet(
+                  context: context,
+                  child: SpeciesTemplateDetailSheet(template: template),
+                ),
                 onDelete: () => _confirmDeleteTemplate(template),
               ),
             ),
@@ -143,6 +147,7 @@ class _TemplateSwipeTile extends StatefulWidget {
     required this.revealed,
     required this.onReveal,
     required this.onClose,
+    required this.onOpen,
     required this.onDelete,
   });
 
@@ -150,6 +155,7 @@ class _TemplateSwipeTile extends StatefulWidget {
   final bool revealed;
   final VoidCallback onReveal;
   final VoidCallback onClose;
+  final VoidCallback onOpen;
   final VoidCallback onDelete;
 
   @override
@@ -251,6 +257,7 @@ class _TemplateSwipeTileState extends State<_TemplateSwipeTile> {
                             setState(() => _offset = 0);
                             widget.onClose();
                           }
+                          widget.onOpen();
                         },
                         borderRadius: BorderRadius.circular(17),
                         child: Padding(
@@ -320,6 +327,151 @@ class _TemplateSwipeTileState extends State<_TemplateSwipeTile> {
           ),
         );
       },
+    );
+  }
+}
+
+class SpeciesTemplateDetailSheet extends StatelessWidget {
+  const SpeciesTemplateDetailSheet({super.key, required this.template});
+
+  final PetSpecies template;
+
+  @override
+  Widget build(BuildContext context) {
+    final tasks = starterCareTasksFor(template);
+    return AppSheetFrame(
+      title: '模板详情',
+      maxHeightFactor: 0.84,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PaperCard(
+            child: Row(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    gradient: template.gradient,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  alignment: Alignment.center,
+                  child: AnimalArt(species: template, size: 42),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(template.label, style: AppText.display(21)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${template.category} · ${template.code}',
+                        style: AppText.body(10.5, color: AppColors.muted),
+                      ),
+                      if (template.note.trim().isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          template.note,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.body(10, color: AppColors.faint),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Callout(message: '使用此模板新增动物后，系统会自动创建以下固定任务。'),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text('固定任务', style: AppText.display(16)),
+              const Spacer(),
+              Text(
+                '${tasks.length} 项',
+                style: AppText.body(10, color: AppColors.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          for (var index = 0; index < tasks.length; index++) ...[
+            _StarterTaskCard(task: tasks[index]),
+            if (index < tasks.length - 1) const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StarterTaskCard extends StatelessWidget {
+  const _StarterTaskCard({required this.task});
+
+  final StarterCareTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMust = task.priority == TaskPriority.must;
+    return PaperCard(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: isMust ? AppColors.roseWash : AppColors.brassWash,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              task.time,
+              style: AppText.number(
+                10.5,
+                color: isMust ? AppColors.rose : AppColors.brass,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: AppText.body(12.5, weight: FontWeight.w600),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  task.subtitle,
+                  style: AppText.body(9.5, color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(task.type, style: AppText.body(9.5, color: AppColors.muted)),
+              const SizedBox(height: 3),
+              Text(
+                isMust ? '必做' : '建议',
+                style: AppText.body(
+                  8.5,
+                  color: isMust ? AppColors.rose : AppColors.brass,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1536,6 +1536,40 @@ void main() {
     );
   });
 
+  testWidgets('点击模板显示详情和固定任务', (tester) async {
+    final state = AppState.inMemory();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: SpeciesTemplateLibraryScreen(state: state),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('豹纹守宫').first);
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('模板详情'), findsOneWidget);
+    expect(find.text('固定任务'), findsOneWidget);
+    expect(find.text('完成首次环境检查'), findsOneWidget);
+    expect(find.text('检查温湿度'), findsOneWidget);
+    expect(find.text('检查躲避穴'), findsOneWidget);
+  });
+
+  test('同一分类的模板使用相同固定任务', () {
+    final catTasks = starterCareTasksFor(PetSpecies.cat)
+        .map((task) => task.title)
+        .toList();
+    final dogTasks = starterCareTasksFor(PetSpecies.dog)
+        .map((task) => task.title)
+        .toList();
+    final geckoTasks = starterCareTasksFor(PetSpecies.gecko)
+        .map((task) => task.title)
+        .toList();
+
+    expect(dogTasks, catTasks);
+    expect(geckoTasks, isNot(catTasks));
+  });
+
   test('模板删除会保留至少一个并持久化内置模板隐藏状态', () async {
     SharedPreferences.setMockInitialValues({});
     final state = await AppState.load();

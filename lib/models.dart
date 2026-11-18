@@ -576,6 +576,132 @@ enum TaskPriority { must, suggested }
 
 enum TaskRunAction { completed, skipped, reopened }
 
+class StarterCareTask {
+  const StarterCareTask({
+    required this.title,
+    required this.subtitle,
+    required this.type,
+    required this.time,
+    required this.priority,
+  });
+
+  final String title;
+  final String subtitle;
+  final String type;
+  final String time;
+  final TaskPriority priority;
+}
+
+List<StarterCareTask> starterCareTasksFor(PetSpecies species) {
+  return [
+    const StarterCareTask(
+      title: '完成首次环境检查',
+      subtitle: '确认环境布置与安全区域',
+      type: '环境',
+      time: '18:00',
+      priority: TaskPriority.must,
+    ),
+    ...switch (species.category) {
+      '水族' => const [
+        StarterCareTask(
+          title: '检查水质',
+          subtitle: '观察水温、水面与过滤运行',
+          type: '水族',
+          time: '09:00',
+          priority: TaskPriority.must,
+        ),
+        StarterCareTask(
+          title: '准备当天喂食',
+          subtitle: '按食物计划控制每餐用量',
+          type: '喂食',
+          time: '18:30',
+          priority: TaskPriority.suggested,
+        ),
+      ],
+      '鸟类' => const [
+        StarterCareTask(
+          title: '更换饮水',
+          subtitle: '清洗饮水器并补充室温水',
+          type: '喂食',
+          time: '08:30',
+          priority: TaskPriority.must,
+        ),
+        StarterCareTask(
+          title: '清理栖架',
+          subtitle: '检查粪便与活动区域',
+          type: '清洁',
+          time: '19:00',
+          priority: TaskPriority.suggested,
+        ),
+      ],
+      '爬宠' => const [
+        StarterCareTask(
+          title: '检查温湿度',
+          subtitle: '记录冷热区与躲避穴读数',
+          type: '环境',
+          time: '08:30',
+          priority: TaskPriority.must,
+        ),
+        StarterCareTask(
+          title: '检查躲避穴',
+          subtitle: '确认垫材与湿度状态',
+          type: '环境',
+          time: '20:00',
+          priority: TaskPriority.suggested,
+        ),
+      ],
+      '两栖' => const [
+        StarterCareTask(
+          title: '检查湿度与水质',
+          subtitle: '确认喷淋、水盆与通风状态',
+          type: '环境',
+          time: '09:00',
+          priority: TaskPriority.must,
+        ),
+        StarterCareTask(
+          title: '准备当天喂食',
+          subtitle: '按计划记录进食情况',
+          type: '喂食',
+          time: '19:00',
+          priority: TaskPriority.suggested,
+        ),
+      ],
+      '哺乳' => const [
+        StarterCareTask(
+          title: '准备饮水和食物',
+          subtitle: '清洗食盆并检查饮用水',
+          type: '喂食',
+          time: '08:00',
+          priority: TaskPriority.must,
+        ),
+        StarterCareTask(
+          title: '清理生活区',
+          subtitle: '检查睡眠区与排泄情况',
+          type: '清洁',
+          time: '20:00',
+          priority: TaskPriority.suggested,
+        ),
+      ],
+      _ => const [
+        StarterCareTask(
+          title: '准备当天食物',
+          subtitle: '按食物计划控制用量',
+          type: '喂食',
+          time: '08:30',
+          priority: TaskPriority.must,
+        ),
+        StarterCareTask(
+          title: '检查饲养环境',
+          subtitle: '确认温湿度、清洁与安全',
+          type: '环境',
+          time: '20:00',
+          priority: TaskPriority.suggested,
+        ),
+      ],
+    },
+  ];
+}
+
 class JournalEntry {
   JournalEntry({
     required this.title,
@@ -1696,45 +1822,17 @@ class AppState extends ChangeNotifier {
     );
     pets.insert(0, pet);
 
-    final starterNeeds = <(String, String, String, String, TaskPriority)>[
-      ('完成首次环境检查', '确认环境布置与安全区域', '环境', '18:00', TaskPriority.must),
-      ...switch (species.category) {
-        '水族' => [
-          ('检查水质', '观察水温、水面与过滤运行', '水族', '09:00', TaskPriority.must),
-          ('准备当天喂食', '按食物计划控制每餐用量', '喂食', '18:30', TaskPriority.suggested),
-        ],
-        '鸟类' => [
-          ('更换饮水', '清洗饮水器并补充室温水', '喂食', '08:30', TaskPriority.must),
-          ('清理栖架', '检查粪便与活动区域', '清洁', '19:00', TaskPriority.suggested),
-        ],
-        '爬宠' => [
-          ('检查温湿度', '记录冷热区与躲避穴读数', '环境', '08:30', TaskPriority.must),
-          ('检查躲避穴', '确认垫材与湿度状态', '环境', '20:00', TaskPriority.suggested),
-        ],
-        '两栖' => [
-          ('检查湿度与水质', '确认喷淋、水盆与通风状态', '环境', '09:00', TaskPriority.must),
-          ('准备当天喂食', '按计划记录进食情况', '喂食', '19:00', TaskPriority.suggested),
-        ],
-        '哺乳' => [
-          ('准备饮水和食物', '清洗食盆并检查饮用水', '喂食', '08:00', TaskPriority.must),
-          ('清理生活区', '检查睡眠区与排泄情况', '清洁', '20:00', TaskPriority.suggested),
-        ],
-        _ => [
-          ('准备当天食物', '按食物计划控制用量', '喂食', '08:30', TaskPriority.must),
-          ('检查饲养环境', '确认温湿度、清洁与安全', '环境', '20:00', TaskPriority.suggested),
-        ],
-      },
-    ];
-    for (var index = 0; index < starterNeeds.length; index++) {
-      final need = starterNeeds[index];
+    final starterTasks = starterCareTasksFor(species);
+    for (var index = 0; index < starterTasks.length; index++) {
+      final need = starterTasks[index];
       final definition = CareTaskDefinition(
         id: 'definition-$stamp-$index',
         petId: pet.id,
-        title: need.$1,
-        subtitle: need.$2,
-        type: need.$3,
-        defaultTime: need.$4,
-        priority: need.$5,
+        title: need.title,
+        subtitle: need.subtitle,
+        type: need.type,
+        defaultTime: need.time,
+        priority: need.priority,
       );
       taskDefinitions.add(definition);
       tasks.insert(
