@@ -1225,15 +1225,23 @@ class CareTaskDefinition {
     };
   }
 
-  CareTaskDefinition copyWith({bool? enabled, Set<int>? weekdays}) {
+  CareTaskDefinition copyWith({
+    String? title,
+    String? subtitle,
+    String? type,
+    String? defaultTime,
+    TaskPriority? priority,
+    bool? enabled,
+    Set<int>? weekdays,
+  }) {
     return CareTaskDefinition(
       id: id,
       petId: petId,
-      title: title,
-      subtitle: subtitle,
-      type: type,
-      defaultTime: defaultTime,
-      priority: priority,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      type: type ?? this.type,
+      defaultTime: defaultTime ?? this.defaultTime,
+      priority: priority ?? this.priority,
       enabled: enabled ?? this.enabled,
       weekdays: weekdays ?? this.weekdays,
     );
@@ -1352,6 +1360,31 @@ class CareTask {
   }
 
   CareTaskRun? get latestRun => runs.isEmpty ? null : runs.last;
+
+  CareTask copyWith({
+    String? title,
+    String? subtitle,
+    String? time,
+    String? type,
+    DateTime? date,
+    TaskPriority? priority,
+    bool? recurring,
+    List<CareTaskRun>? runs,
+  }) {
+    return CareTask(
+      id: id,
+      definitionId: definitionId,
+      petId: petId,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      time: time ?? this.time,
+      type: type ?? this.type,
+      date: date ?? this.date,
+      priority: priority ?? this.priority,
+      recurring: recurring ?? this.recurring,
+      runs: runs ?? this.runs,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -1797,6 +1830,47 @@ class AppState extends ChangeNotifier {
     unawaited(_persist());
   }
 
+  bool deletePet(String id) {
+    final index = pets.indexWhere((pet) => pet.id == id);
+    if (index < 0) return false;
+    final pet = pets[index];
+    final localImagePaths =
+        <String>[
+              ...pet.photos,
+              for (final log in pet.logs)
+                if (log.attachmentPath != null) log.attachmentPath!,
+            ]
+            .where((path) {
+              final value = path.trim();
+              return value.isNotEmpty &&
+                  !value.startsWith('data:image/') &&
+                  !value.startsWith('http://') &&
+                  !value.startsWith('https://');
+            })
+            .toList(growable: false);
+
+    pets.removeAt(index);
+    foodSupplies.removeWhere((food) => food.petId == id);
+    taskDefinitions.removeWhere((definition) => definition.petId == id);
+    tasks.removeWhere((task) => task.petId == id);
+    handoffGrants.removeWhere((grant) => grant.petId == id);
+    notifyListeners();
+    unawaited(_persist());
+    unawaited(_deleteLocalImages(localImagePaths));
+    return true;
+  }
+
+  Future<void> _deleteLocalImages(Iterable<String> paths) async {
+    for (final path in paths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      } on Object {
+        // The database entry is removed even if an image file is unavailable.
+      }
+    }
+  }
+
   void ensureTodayOccurrences([DateTime? now]) {
     ensureOccurrencesThrough(now: now, daysAhead: 0);
   }
@@ -2086,8 +2160,50 @@ class AppState extends ChangeNotifier {
 
   void deleteTaskDefinition(String id) {
     taskDefinitions.removeWhere((item) => item.id == id);
+    tasks.removeWhere((task) => task.definitionId == id);
     notifyListeners();
     unawaited(_persist());
+  }
+
+  void deleteTask(String id) {
+    tasks.removeWhere((task) => task.id == id);
+    notifyListeners();
+    unawaited(_persist());
+  }
+
+  bool updateTaskDefinition({
+    required String id,
+    required String title,
+    required String subtitle,
+    required String type,
+    required String time,
+    required TaskPriority priority,
+    required Set<int> weekdays,
+  }) {
+    final index = taskDefinitions.indexWhere((item) => item.id == id);
+    if (index < 0) return false;
+    taskDefinitions[index] = taskDefinitions[index].copyWith(
+      title: title,
+      subtitle: subtitle,
+      type: type,
+      defaultTime: time,
+      priority: priority,
+      weekdays: weekdays,
+    );
+    for (var taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
+      final task = tasks[taskIndex];
+      if (task.definitionId != id) continue;
+      tasks[taskIndex] = task.copyWith(
+        title: title,
+        subtitle: subtitle,
+        type: type,
+        time: time,
+        priority: priority,
+      );
+    }
+    notifyListeners();
+    unawaited(_persist());
+    return true;
   }
 
   void addHealthLog({
@@ -2224,6 +2340,7 @@ class AppState extends ChangeNotifier {
     guestExpiresAt ??= current.add(guestRetention);
     if (current.isBefore(guestExpiresAt!)) return false;
     _clearUserData();
+    _seedReferenceData();
     guestExpiresAt = current.add(guestRetention);
     _guestDataResetPending = true;
     notifyListeners();
@@ -2247,7 +2364,12 @@ class AppState extends ChangeNotifier {
   }
 
   void startMemberLogin({bool profileCompleted = false}) {
-    if (isGuest) _clearUserData();
+    if (isGuest) {
+      _clearCareData();
+      _seedReferenceData();
+      notifications = true;
+      hapticFeedback = true;
+    }
     if (profileCompleted) {
       memberOnboardingCompleted = true;
       onboardingCompleted = true;
@@ -2261,13 +2383,18 @@ class AppState extends ChangeNotifier {
   }
 
   void enterGuestMode() {
+    _clearUserData();
+    notifications = true;
+    hapticFeedback = true;
+    nickname = '游客';
     _seedReferenceData();
     ensureOccurrencesThrough();
     signedIn = true;
     isGuest = true;
     borrowFlag = null;
-    guestExpiresAt ??= DateTime.now().add(guestRetention);
+    guestExpiresAt = DateTime.now().add(guestRetention);
     onboardingCompleted = true;
+    memberOnboardingCompleted = false;
     notifyListeners();
     unawaited(_persist());
   }
@@ -2296,9 +2423,6 @@ class AppState extends ChangeNotifier {
 
   void deleteLocalAccount() {
     _clearUserData();
-    speciesTemplates.clear();
-    hiddenSpeciesTemplateIds.clear();
-    rooms.clear();
     notifications = true;
     hapticFeedback = true;
     signedIn = false;
@@ -2330,15 +2454,22 @@ class AppState extends ChangeNotifier {
   }
 
   void _clearUserData() {
-    pets.clear();
-    foodSupplies.clear();
-    taskDefinitions.clear();
-    tasks.clear();
-    handoffGrants.clear();
+    _clearCareData();
     nickname = '栖护主人';
     avatarPath = null;
     city = '上海';
     careTags = [];
+  }
+
+  void _clearCareData() {
+    pets.clear();
+    speciesTemplates.clear();
+    hiddenSpeciesTemplateIds.clear();
+    rooms.clear();
+    foodSupplies.clear();
+    taskDefinitions.clear();
+    tasks.clear();
+    handoffGrants.clear();
   }
 
   void _seed() {
@@ -2475,6 +2606,33 @@ class AppState extends ChangeNotifier {
   Future<void> preparePhotosForCloud() async {
     var changed = false;
     final obsoletePaths = <String>[];
+
+    final currentAvatarPath = avatarPath?.trim() ?? '';
+    if (currentAvatarPath.isNotEmpty &&
+        !currentAvatarPath.startsWith('data:image/') &&
+        !currentAvatarPath.startsWith('http://') &&
+        !currentAvatarPath.startsWith('https://')) {
+      try {
+        final bytes = await File(currentAvatarPath).readAsBytes();
+        final extension = currentAvatarPath.split('.').last.toLowerCase();
+        final mimeType = switch (extension) {
+          'png' => 'image/png',
+          'webp' => 'image/webp',
+          _ => 'image/jpeg',
+        };
+        avatarPath = 'data:$mimeType;base64,${base64Encode(bytes)}';
+        if (currentAvatarPath
+            .split(Platform.pathSeparator)
+            .last
+            .startsWith('profile_avatar_')) {
+          obsoletePaths.add(currentAvatarPath);
+        }
+        changed = true;
+      } on Object {
+        // Keep an unreadable local avatar path for the current device.
+      }
+    }
+
     for (var index = 0; index < pets.length; index++) {
       final pet = pets[index];
       final photos = <String>[];

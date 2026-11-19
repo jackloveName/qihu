@@ -1784,10 +1784,23 @@ class _DailyNeedDetailSheet extends StatelessWidget {
     return AppSheetFrame(
       title: '养护任务',
       maxHeightFactor: 0.7,
-      footer: PrimaryButton(
-        label: '删除',
-        ghost: true,
-        onPressed: () => _delete(context),
+      footer: Row(
+        children: [
+          Expanded(
+            child: PrimaryButton(
+              label: '编辑',
+              ghost: true,
+              onPressed: () => _edit(context),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: PrimaryButton(
+              label: '删除',
+              onPressed: () => _delete(context),
+            ),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1885,6 +1898,19 @@ class _DailyNeedDetailSheet extends StatelessWidget {
     );
   }
 
+  Future<void> _edit(BuildContext context) async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddTaskScreen(
+          state: state,
+          initialDefinition: definition,
+          lockPet: true,
+        ),
+      ),
+    );
+    if (updated == true && context.mounted) Navigator.pop(context);
+  }
+
   Future<void> _delete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1892,7 +1918,7 @@ class _DailyNeedDetailSheet extends StatelessWidget {
         backgroundColor: AppColors.paper,
         title: Text('删除养护任务？', style: AppText.display(19)),
         content: Text(
-          '删除后将停止生成后续任务，已经生成的任务不会受影响。',
+          '删除后，该任务及已经生成的当天和后续任务都会从档案中移除，且不再继续生成。',
           style: AppText.body(12, color: AppColors.muted, height: 1.6),
         ),
         actions: [

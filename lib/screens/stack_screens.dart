@@ -92,7 +92,23 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     return _StackPage(
       title: '动物档案',
       subtitle: _pet.species.label,
-      action: RoundIconButton(icon: Icons.edit_outlined, onPressed: _editPet),
+      action: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RoundIconButton(
+            key: const ValueKey('delete-pet-button'),
+            icon: Icons.delete_outline_rounded,
+            foreground: AppColors.rose,
+            onPressed: _deletePet,
+          ),
+          const SizedBox(width: 8),
+          RoundIconButton(
+            key: const ValueKey('edit-pet-button'),
+            icon: Icons.edit_outlined,
+            onPressed: _editPet,
+          ),
+        ],
+      ),
       bottomBar: SafeArea(
         top: false,
         child: Container(
@@ -225,6 +241,46 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       setState(() {});
       showAppMessage(context, '动物资料已更新');
     }
+  }
+
+  Future<void> _deletePet() async {
+    final petId = widget.petId;
+    final petName = _pet.name;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.paper,
+        title: Text('删除动物档案？', style: AppText.display(20)),
+        content: Text(
+          '“$petName”的档案、照片、健康记录、任务和库存都会被删除，且无法恢复。',
+          style: AppText.body(12.5, color: AppColors.muted, height: 1.65),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.rose,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('确认删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    widget.state.removeListener(_onStateChanged);
+    final deleted = widget.state.deletePet(petId);
+    if (!deleted) {
+      widget.state.addListener(_onStateChanged);
+      if (mounted) showAppMessage(context, '动物档案已不存在');
+      return;
+    }
+    if (mounted) showAppMessageAndPop(context, '动物档案已删除');
   }
 }
 
@@ -1169,12 +1225,182 @@ class _PetTasks extends StatelessWidget {
             pet: pet,
             onOpen: () => showAppSheet(
               context: context,
-              child: TaskDetailSheet(state: state, task: tasks[index]),
+              child: _PetTaskActionsSheet(
+                state: state,
+                task: tasks[index],
+                pet: pet,
+              ),
             ),
           ),
         ],
       ],
     );
+  }
+}
+
+class _PetTaskActionsSheet extends StatelessWidget {
+  const _PetTaskActionsSheet({
+    required this.state,
+    required this.task,
+    required this.pet,
+  });
+
+  final AppState state;
+  final CareTask task;
+  final PetProfile pet;
+
+  CareTaskDefinition? get _definition => state.taskDefinitions
+      .where((item) => item.id == task.definitionId)
+      .firstOrNull;
+
+  @override
+  Widget build(BuildContext context) {
+    final definition = _definition;
+    return AppSheetFrame(
+      title: '任务管理',
+      maxHeightFactor: 0.62,
+      footer: Row(
+        children: [
+          Expanded(
+            child: PrimaryButton(
+              label: '编辑',
+              ghost: true,
+              onPressed: definition == null ? null : () => _edit(context),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: PrimaryButton(
+              label: '删除',
+              onPressed: () => _delete(context),
+            ),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: pet.species.gradient,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: pet.species.ink.withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.58),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: AnimalArt(species: pet.species, size: 25),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(pet.name, style: AppText.display(16)),
+                      const SizedBox(height: 2),
+                      Text(
+                        pet.species.label,
+                        style: AppText.body(9.5, color: AppColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  task.time,
+                  style: AppText.number(13, weight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          PaperCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${task.type}：${task.title}',
+                  style: AppText.body(14, weight: FontWeight.w700),
+                ),
+                const SizedBox(height: 9),
+                Text(
+                  task.subtitle.trim().isEmpty ? '暂无任务说明' : task.subtitle,
+                  style: AppText.body(
+                    11.5,
+                    color: AppColors.muted,
+                    height: 1.65,
+                  ),
+                ),
+                if (definition != null) ...[
+                  const SizedBox(height: 9),
+                  Text(
+                    '重复方式：${definition.repeatDescription}',
+                    style: AppText.body(10.5, color: AppColors.muted),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _edit(BuildContext context) async {
+    final definition = _definition;
+    if (definition == null) return;
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddTaskScreen(
+          state: state,
+          initialDefinition: definition,
+          lockPet: true,
+        ),
+      ),
+    );
+    if (updated == true && context.mounted) Navigator.pop(context);
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.paper,
+        title: Text('删除养护任务？', style: AppText.display(19)),
+        content: Text(
+          '“${task.title}”及已经生成的当天和后续任务都会被删除，且无法恢复。',
+          style: AppText.body(12, color: AppColors.muted, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.rose,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    if (_definition == null) {
+      state.deleteTask(task.id);
+    } else {
+      state.deleteTaskDefinition(task.definitionId);
+    }
+    showAppMessageAndPop(context, '养护任务已删除');
   }
 }
 

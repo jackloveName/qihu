@@ -122,10 +122,7 @@ class _LegacyLocalLoginScreenState extends State<LegacyLocalLoginScreen> {
                           LengthLimitingTextInputFormatter(11),
                         ],
                         style: AppText.number(15),
-                        decoration: const InputDecoration(
-                          hintText: '请输入手机号',
-                          prefixText: '+86  ',
-                        ),
+                        decoration: const InputDecoration(hintText: '请输入手机号'),
                       ),
                     ),
                     if (_mode == _LoginMode.password)
@@ -442,7 +439,6 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
                                     Icons.phone_iphone_rounded,
                                     size: 19,
                                   ),
-                                  prefixText: '+86  ',
                                 ),
                               ),
                             ),
@@ -553,9 +549,7 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
                             const SizedBox(height: 4),
                             Center(
                               child: TextButton.icon(
-                                onPressed: _submitting
-                                    ? null
-                                    : widget.state.enterGuestMode,
+                                onPressed: _submitting ? null : _enterGuestMode,
                                 icon: const Icon(
                                   Icons.person_outline_rounded,
                                   size: 16,
@@ -581,6 +575,12 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
                                   ],
                                 ),
                               ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '游客使用独立空白数据，不读取已退出账号的档案和头像。',
+                              textAlign: TextAlign.center,
+                              style: AppText.body(9.5, color: AppColors.faint),
                             ),
                           ],
                         ),
@@ -654,6 +654,11 @@ class _LocalLoginScreenState extends State<LocalLoginScreen> {
     }
     unawaited(PrivacyConsentStore.accept());
     widget.state.startMemberLogin(profileCompleted: profileCompleted);
+  }
+
+  void _enterGuestMode() {
+    unawaited(LocalImageStore.deleteAll());
+    widget.state.enterGuestMode();
   }
 
   Future<void> _sendRemoteCode(BuildContext context) async {
@@ -1107,108 +1112,101 @@ class _LoginConsent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 10, 11, 10),
-      decoration: BoxDecoration(
-        color: AppColors.paper2,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: AppColors.hair),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Semantics(
-            key: const ValueKey('login-consent-checkbox'),
-            checked: accepted,
-            label: '已阅读并同意《隐私政策》和《平台注册协议》',
-            child: InkResponse(
-              onTap: () => onChanged(!accepted),
-              radius: 20,
-              child: SizedBox(
-                width: 36,
-                height: 34,
-                child: Center(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: accepted ? AppColors.brand : AppColors.paper,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: accepted ? AppColors.brand : AppColors.hair2,
-                        width: 1.3,
-                      ),
+    return Row(
+      key: const ValueKey('login-consent-row'),
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Semantics(
+          key: const ValueKey('login-consent-checkbox'),
+          checked: accepted,
+          label: '已阅读并同意《隐私政策》和《平台注册协议》',
+          child: InkResponse(
+            onTap: () => onChanged(!accepted),
+            radius: 20,
+            child: SizedBox(
+              width: 30,
+              height: 32,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: accepted ? AppColors.brand : Colors.transparent,
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: accepted ? AppColors.brand : AppColors.hair2,
+                      width: 1.3,
                     ),
-                    child: accepted
-                        ? const Icon(
-                            Icons.check_rounded,
-                            size: 14,
-                            color: Color(0xFFF4F1E6),
-                          )
-                        : null,
                   ),
+                  child: accepted
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 13,
+                          color: Color(0xFFF4F1E6),
+                        )
+                      : null,
                 ),
               ),
             ),
           ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  key: const ValueKey('login-consent-copy'),
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 0,
-                  runSpacing: 2,
-                  children: [
-                    Text(
-                      '已阅读并同意',
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                key: const ValueKey('login-consent-copy'),
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 0,
+                runSpacing: 2,
+                children: [
+                  Text(
+                    '已阅读并同意',
+                    style: AppText.body(
+                      10.5,
+                      color: AppColors.ink2,
+                      height: 1.45,
+                    ),
+                  ),
+                  GestureDetector(
+                    key: const ValueKey('login-privacy-link'),
+                    onTap: onOpenPrivacy,
+                    child: Text(
+                      '《隐私政策》',
                       style: AppText.body(
                         10.5,
-                        color: AppColors.ink2,
-                        height: 1.45,
+                        color: AppColors.brand,
+                        weight: FontWeight.w600,
                       ),
                     ),
-                    GestureDetector(
-                      key: const ValueKey('login-privacy-link'),
-                      onTap: onOpenPrivacy,
-                      child: Text(
-                        '《隐私政策》',
-                        style: AppText.body(
-                          10.5,
-                          color: AppColors.brand,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
+                  ),
+                  Text(
+                    '和',
+                    style: AppText.body(
+                      10.5,
+                      color: AppColors.ink2,
+                      height: 1.45,
                     ),
-                    Text(
-                      '和',
+                  ),
+                  GestureDetector(
+                    key: const ValueKey('login-agreement-link'),
+                    onTap: onOpenAgreement,
+                    child: Text(
+                      '《平台注册协议》',
                       style: AppText.body(
                         10.5,
-                        color: AppColors.ink2,
-                        height: 1.45,
+                        color: AppColors.brand,
+                        weight: FontWeight.w600,
                       ),
                     ),
-                    GestureDetector(
-                      key: const ValueKey('login-agreement-link'),
-                      onTap: onOpenAgreement,
-                      child: Text(
-                        '《平台注册协议》',
-                        style: AppText.body(
-                          10.5,
-                          color: AppColors.brand,
-                          weight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

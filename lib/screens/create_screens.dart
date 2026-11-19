@@ -734,12 +734,14 @@ class AddTaskScreen extends StatefulWidget {
     super.key,
     required this.state,
     this.initialPetId,
+    this.initialDefinition,
     this.initialRecurring = true,
     this.lockPet = false,
   });
 
   final AppState state;
   final String? initialPetId;
+  final CareTaskDefinition? initialDefinition;
   final bool initialRecurring;
   final bool lockPet;
 
@@ -748,15 +750,15 @@ class AddTaskScreen extends StatefulWidget {
 }
 
 class _AddTaskScreenState extends State<AddTaskScreen> {
-  late String _petId = widget.initialPetId ?? widget.state.pets.first.id;
-  String _type = '环境';
-  TaskPriority _priority = TaskPriority.suggested;
-  late String _repeatMode = widget.initialRecurring ? '每天' : '仅今天';
-  final Set<int> _customWeekdays = {DateTime.now().weekday};
-  TimeOfDay _time = const TimeOfDay(hour: 18, minute: 0);
+  late String _petId;
+  late String _type;
+  late TaskPriority _priority;
+  late String _repeatMode;
+  late final Set<int> _customWeekdays;
+  late TimeOfDay _time;
   DateTime _fixedDate = PetDates.dateOnly();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
 
   static const _repeatModes = [
     '仅今天',
@@ -767,6 +769,25 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     '指定星期',
     '固定日期',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final definition = widget.initialDefinition;
+    _petId =
+        definition?.petId ?? widget.initialPetId ?? widget.state.pets.first.id;
+    _type = definition?.type ?? '环境';
+    _priority = definition?.priority ?? TaskPriority.suggested;
+    _customWeekdays = definition == null || definition.weekdays.isEmpty
+        ? {DateTime.now().weekday}
+        : Set<int>.from(definition.weekdays);
+    _repeatMode = _repeatModeFor(definition?.weekdays ?? const {});
+    _time = _parseTime(definition?.defaultTime ?? '18:00');
+    _titleController = TextEditingController(text: definition?.title ?? '');
+    _descriptionController = TextEditingController(
+      text: definition?.subtitle ?? '',
+    );
+  }
 
   @override
   void dispose() {
@@ -789,14 +810,20 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               slivers: [
                 SliverToBoxAdapter(
                   child: StackHeader(
-                    title: '新增养护任务',
-                    subtitle: '计划 · 提醒 · 执行记录',
+                    title: widget.initialDefinition == null
+                        ? '新增养护任务'
+                        : '编辑养护任务',
+                    subtitle: widget.initialDefinition == null
+                        ? '计划 · 提醒 · 执行记录'
+                        : '修改任务内容、类型、时间和重复方式',
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: FormSection(
                     label: '关联动物',
-                    child: widget.lockPet && selectedPet != null
+                    child:
+                        (widget.lockPet || widget.initialDefinition != null) &&
+                            selectedPet != null
                         ? PaperCard(
                             padding: const EdgeInsets.all(12),
                             child: Row(
@@ -992,7 +1019,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         ),
       ),
       bottomNavigationBar: BottomActionBar(
-        child: PrimaryButton(label: '创建任务', onPressed: _create),
+        child: PrimaryButton(
+          label: widget.initialDefinition == null ? '创建任务' : '保存修改',
+          onPressed: _create,
+        ),
       ),
     );
   }
@@ -1032,7 +1062,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             value: _repeatMode,
             icon: Icons.repeat_rounded,
             options: [
-              for (final mode in _repeatModes)
+              for (final mode
+                  in widget.initialDefinition == null
+                      ? _repeatModes
+                      : _repeatModes.skip(1).take(5))
                 BottomSelectOption(value: mode, label: mode),
             ],
             onChanged: (value) {
@@ -1147,18 +1180,57 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       '指定星期' => Set<int>.from(_customWeekdays),
       _ => const <int>{},
     };
-    widget.state.addTask(
-      petId: _petId,
-      title: title,
-      subtitle: description,
-      time: _formatTime(_time),
-      type: _type,
-      priority: _priority,
-      recurring: recurring,
-      date: _repeatMode == '固定日期' ? _fixedDate : PetDates.dateOnly(),
-      weekdays: weekdays,
-    );
+    final definition = widget.initialDefinition;
+    if (definition != null) {
+      final updated = widget.state.updateTaskDefinition(
+        id: definition.id,
+        title: title,
+        subtitle: description,
+        type: _type,
+        time: _formatTime(_time),
+        priority: _priority,
+        weekdays: weekdays,
+      );
+      if (!updated) {
+        showAppMessage(context, '任务已不存在');
+        return;
+      }
+      showAppMessage(context, '养护任务已更新');
+    } else {
+      widget.state.addTask(
+        petId: _petId,
+        title: title,
+        subtitle: description,
+        time: _formatTime(_time),
+        type: _type,
+        priority: _priority,
+        recurring: recurring,
+        date: _repeatMode == '固定日期' ? _fixedDate : PetDates.dateOnly(),
+        weekdays: weekdays,
+      );
+    }
     Navigator.pop(context, true);
+  }
+
+  static String _repeatModeFor(Set<int> weekdays) {
+    if (weekdays.isEmpty) return '每天';
+    if (weekdays.length == 5 && weekdays.containsAll(const {1, 2, 3, 4, 5})) {
+      return '工作日';
+    }
+    if (weekdays.length == 2 && weekdays.containsAll(const {6, 7})) {
+      return '周末';
+    }
+    return '指定星期';
+  }
+
+  static TimeOfDay _parseTime(String value) {
+    final parts = value.split(':');
+    final hour = parts.isNotEmpty ? int.tryParse(parts.first) : null;
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) : null;
+    return TimeOfDay(
+      hour: (hour ?? 18).clamp(0, 23),
+      minute: (minute ?? 0).clamp(0, 59),
+    );
   }
 
   String get _repeatDescription {

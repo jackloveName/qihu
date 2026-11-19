@@ -1043,6 +1043,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   late String _petId = widget.initialPetId ?? widget.state.pets.first.id;
   String _tag = '日常观察';
   final _descriptionController = TextEditingController();
+  final _descriptionFocusNode = FocusNode();
   final _picker = ImagePicker();
   String? _photoPath;
   DateTime? _followUpDate;
@@ -1060,6 +1061,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   @override
   void dispose() {
     _descriptionController.dispose();
+    _descriptionFocusNode.dispose();
     super.dispose();
   }
 
@@ -1083,6 +1085,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
           child: PagePadding(
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               slivers: [
                 SliverToBoxAdapter(
                   child: StackHeader(
@@ -1170,9 +1173,14 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
         FormSection(
           label: '备注',
           child: TextField(
+            key: const ValueKey('health-description-field'),
             controller: _descriptionController,
+            focusNode: _descriptionFocusNode,
             minLines: 4,
             maxLines: 6,
+            textInputAction: TextInputAction.done,
+            onTapOutside: (_) => _dismissKeyboard(),
+            onSubmitted: (_) => _dismissKeyboard(),
             style: AppText.body(13.5),
             decoration: const InputDecoration(hintText: '描述你观察到的变化与持续时间'),
           ),
@@ -1308,6 +1316,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   }
 
   void _save() {
+    _dismissKeyboard();
     if (_tag == '需要复看' && _followUpAt == null) {
       showAppMessage(context, '请选择复看日期和时间');
       return;
@@ -1334,6 +1343,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   }
 
   Future<void> _pickPhoto() async {
+    _dismissKeyboard();
     setState(() => _savingPhoto = true);
     try {
       final image = await _picker.pickImage(
@@ -1413,6 +1423,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   }
 
   Future<void> _pickFollowUpDate() async {
+    _dismissKeyboard();
     final now = DateTime.now();
     final today = PetDates.dateOnly(now);
     var draft = _followUpDate ?? today.add(const Duration(days: 1));
@@ -1445,6 +1456,7 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   }
 
   Future<void> _pickFollowUpTime() async {
+    _dismissKeyboard();
     var draft =
         _followUpTime ??
         TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 1)));
@@ -1478,6 +1490,11 @@ class _HealthLogSheetState extends State<HealthLogSheet> {
   String _formatFollowUpTime(TimeOfDay time) {
     return '${time.hour.toString().padLeft(2, '0')}:'
         '${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _dismissKeyboard() {
+    _descriptionFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 }
 

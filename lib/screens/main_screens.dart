@@ -8,6 +8,7 @@ import '../date_utils.dart';
 import '../knowledge_content.dart';
 import '../models.dart';
 import '../sheets.dart';
+import '../services/account_data_sync.dart';
 import '../services/auth_service.dart';
 import '../services/local_image_store.dart';
 import '../storage/session_token_store.dart';
@@ -428,6 +429,10 @@ class _WeatherCardState extends State<_WeatherCard> {
   }
 
   Future<void> _pickCity() async {
+    if (widget.state.isGuest) {
+      showAppMessage(context, '游客模式不能修改个人资料，请登录后更换城市');
+      return;
+    }
     final city = await CityPickerSheet.show(context, current: widget.city);
     if (city != null) widget.state.updateCity(city.value);
   }
@@ -2491,7 +2496,7 @@ class _ProfileHeroCard extends StatelessWidget {
   const _ProfileHeroCard({required this.state, required this.onEdit});
 
   final AppState state;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -2585,23 +2590,25 @@ class _ProfileHeroCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        Material(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(11),
-                          child: InkWell(
-                            onTap: onEdit,
+                        if (onEdit != null)
+                          Material(
+                            key: const ValueKey('profile-edit-button'),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(11),
-                            child: const SizedBox(
-                              width: 36,
-                              height: 36,
-                              child: Icon(
-                                Icons.edit_outlined,
-                                color: Color(0xFFD9BE86),
-                                size: 18,
+                            child: InkWell(
+                              onTap: onEdit,
+                              borderRadius: BorderRadius.circular(11),
+                              child: const SizedBox(
+                                width: 36,
+                                height: 36,
+                                child: Icon(
+                                  Icons.edit_outlined,
+                                  color: Color(0xFFD9BE86),
+                                  size: 18,
+                                ),
                               ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -2751,13 +2758,15 @@ class MineScreen extends StatelessWidget {
           SliverToBoxAdapter(
             child: _ProfileHeroCard(
               state: state,
-              onEdit: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      OnboardingScreen(state: state, editMode: true),
-                ),
-              ),
+              onEdit: state.isGuest
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            OnboardingScreen(state: state, editMode: true),
+                      ),
+                    ),
             ),
           ),
           if (state.isGuest)
@@ -2854,7 +2863,7 @@ class MineScreen extends StatelessWidget {
                   MenuRow(
                     icon: Icons.login_rounded,
                     title: '登录 / 注册',
-                    subtitle: '解除游客限制，保留当前本机档案',
+                    subtitle: '登录后使用会员账号数据，游客数据会清空',
                     tone: MenuTone.brand,
                     onTap: state.signOut,
                   )
@@ -2908,6 +2917,11 @@ class MineScreen extends StatelessWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
+    try {
+      await AccountDataSync.active?.syncNow();
+    } on Object {
+      // Logout remains available when the final account sync cannot complete.
+    }
     final token = await SessionTokenStore.read();
     final auth = AuthService();
     try {
@@ -2928,9 +2942,9 @@ class MineScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.paper,
-        title: Text('注销本地账号？', style: AppText.display(20)),
+        title: Text('注销账号？', style: AppText.display(20)),
         content: Text(
-          '动物档案、任务、健康记录和个人资料都会从本机删除，且无法恢复。',
+          '账号关联的云端资料，以及本机的动物档案、照片、任务和健康记录都会被删除，且无法恢复。此操作需要网络连接。',
           style: AppText.body(12.5, color: AppColors.muted, height: 1.65),
         ),
         actions: [
@@ -2962,10 +2976,11 @@ class MineScreen extends StatelessWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           backgroundColor: AppColors.paper,
-          title: Text('云端注销失败', style: AppText.display(19)),
+          title: Text('账号尚未注销', style: AppText.display(19)),
           content: Text(
-            '${error.toString().replaceFirst('Bad state: ', '')}\n\n'
-            '是否仅删除本机数据？本机数据删除后无法恢复。',
+            '云端账号注销失败：${error.toString().replaceFirst('Bad state: ', '')}\n\n'
+            '你的云端账号目前仍然存在。请联网后重新尝试注销，或先仅删除本机数据。'
+            '仅删除本机数据不会注销云端账号。',
             style: AppText.body(12.5, color: AppColors.muted, height: 1.65),
           ),
           actions: [

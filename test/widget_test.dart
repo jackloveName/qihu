@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petcare_manager/app_theme.dart';
@@ -448,6 +451,104 @@ void main() {
     expect(find.byType(AppSheetFrame), findsNothing);
   });
 
+  testWidgets('动物档案删除后会返回动物列表', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory();
+
+    await tester.pumpWidget(PetCareApp(state: state));
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.tap(find.text('动物'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.ensureVisible(find.text('糯米').last);
+    await tester.tap(find.text('糯米').last, warnIfMissed: false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byKey(const ValueKey('delete-pet-button')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('delete-pet-button')));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('删除动物档案？'), findsOneWidget);
+
+    await tester.tap(find.text('确认删除'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(state.pets.any((pet) => pet.name == '糯米'), isFalse);
+    expect(find.text('糯米'), findsNothing);
+    expect(find.byKey(const ValueKey('delete-pet-button')), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('动物档案养护任务弹窗支持编辑和删除', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory(seed: false);
+    final pet = state.addPet(
+      species: PetSpecies.gecko,
+      name: '任务测试',
+      environment: '饲养箱',
+    )!;
+    state.taskDefinitions.clear();
+    state.tasks.clear();
+    state.addTask(
+      petId: pet.id,
+      title: '检查温湿度',
+      subtitle: '记录当前环境读数',
+      time: '08:00',
+      type: '环境',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: PetDetailScreen(state: state, petId: pet.id),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('养护任务'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byType(TaskTile).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('任务管理'), findsOneWidget);
+    expect(find.text('编辑'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+    expect(find.text('温度（°C）'), findsNothing);
+
+    tester
+        .widget<PrimaryButton>(find.widgetWithText(PrimaryButton, '编辑'))
+        .onPressed!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('编辑养护任务'), findsWidgets);
+    expect(find.text('保存修改'), findsOneWidget);
+
+    await tester.enterText(
+      find.descendant(
+        of: find.widgetWithText(FormSection, '任务名称'),
+        matching: find.byType(TextField),
+      ),
+      '记录温湿度',
+    );
+    await tester.tap(find.text('保存修改'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(state.taskDefinitions.single.title, '记录温湿度');
+    expect(
+      state.tasks
+          .where((task) => task.definitionId == state.taskDefinitions.single.id)
+          .every((task) => task.title == '记录温湿度'),
+      isTrue,
+    );
+  });
+
   testWidgets('健康复看使用独立年月日和时分选择器', (tester) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
@@ -479,6 +580,39 @@ void main() {
     expect(find.text('选择复看时间'), findsOneWidget);
     expect(find.byType(HourMinutePicker), findsOneWidget);
     expect(find.text('：'), findsOneWidget);
+  });
+
+  testWidgets('记录观察选择复看时间前会收起备注键盘', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: HealthLogSheet(state: state, fullPage: true),
+      ),
+    );
+    await tester.pump();
+
+    final noteField = find.byKey(const ValueKey('health-description-field'));
+    await tester.ensureVisible(noteField);
+    await tester.tap(noteField);
+    await tester.enterText(noteField, '今天精神状态稳定');
+    await tester.pump();
+    final focusNode = tester.widget<TextField>(noteField).focusNode!;
+    expect(focusNode.hasFocus, isTrue);
+
+    await tester.ensureVisible(find.text('选择日期'));
+    await tester.tap(find.text('选择日期'));
+    await tester.pumpAndSettle();
+
+    expect(focusNode.hasFocus, isFalse);
+    expect(find.text('选择复看日期'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close_rounded).last);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('从动物档案新增任务时锁定当前动物', (tester) async {
@@ -592,7 +726,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('养护任务'), findsWidgets);
     expect(find.text('任务说明'), findsOneWidget);
+    expect(find.text('编辑'), findsOneWidget);
     expect(find.text('删除'), findsOneWidget);
+    final definitionId = state.taskDefinitions.single.id;
+    expect(
+      state.tasks.any((task) => task.definitionId == definitionId),
+      isTrue,
+    );
 
     await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();
@@ -601,6 +741,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
 
     expect(state.taskDefinitions, isEmpty);
+    expect(state.tasks, isEmpty);
     expect(find.text('还没有养护任务'), findsOneWidget);
   });
 
@@ -735,6 +876,42 @@ void main() {
       'data:image/png;base64,AA==',
     ]);
     expect(target.tasks.any((task) => task.title == '云同步称重'), isTrue);
+  });
+
+  test('删除动物会清理关联的任务、库存和健康记录', () {
+    final state = AppState.inMemory();
+    final pet = state.pets.first;
+
+    expect(state.tasks.any((task) => task.petId == pet.id), isTrue);
+    expect(state.taskDefinitions.any((item) => item.petId == pet.id), isTrue);
+    expect(state.foodSupplies.any((item) => item.petId == pet.id), isTrue);
+
+    expect(state.deletePet(pet.id), isTrue);
+
+    expect(state.pets.any((item) => item.id == pet.id), isFalse);
+    expect(state.tasks.any((task) => task.petId == pet.id), isFalse);
+    expect(state.taskDefinitions.any((item) => item.petId == pet.id), isFalse);
+    expect(state.foodSupplies.any((item) => item.petId == pet.id), isFalse);
+  });
+
+  test('会员头像会编码进账号云快照并可在新设备恢复', () async {
+    final directory = await Directory.systemTemp.createTemp('qihu-avatar-');
+    addTearDown(() => directory.delete(recursive: true));
+    final avatar = File('${directory.path}/profile_avatar_test.jpg');
+    await avatar.writeAsBytes(const [1, 2, 3, 4]);
+
+    final source = AppState.inMemory(seed: false);
+    source.updateProfile(nickname: '云端用户', avatarPath: avatar.path);
+    await source.preparePhotosForCloud();
+    final snapshot = source.exportCloudSnapshot();
+    final snapshotMap = jsonDecode(snapshot) as Map<String, dynamic>;
+
+    expect(snapshotMap['avatarPath'], startsWith('data:image/jpeg;base64,'));
+    expect(await avatar.exists(), isFalse);
+
+    final target = AppState.inMemory(seed: false);
+    expect(await target.restoreCloudSnapshot(snapshot), isTrue);
+    expect(target.avatarPath, snapshotMap['avatarPath']);
   });
 
   test('知识库包含多物种文章且文章标题不重复', () {
@@ -1174,7 +1351,7 @@ void main() {
     expect(find.text('游客模式'), findsOneWidget);
   });
 
-  testWidgets('注销账号会清空本地数据', (tester) async {
+  testWidgets('注销账号确认后清空本地数据', (tester) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1196,6 +1373,9 @@ void main() {
     );
     await tester.tap(find.text('注销账号'));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.text('注销账号？'), findsOneWidget);
+    expect(find.textContaining('云端资料'), findsOneWidget);
+    expect(find.textContaining('需要网络连接'), findsOneWidget);
     await tester.tap(find.text('确认注销'));
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
 
@@ -1221,8 +1401,16 @@ void main() {
       find.byKey(const ValueKey('login-consent-checkbox')),
       findsOneWidget,
     );
+    expect(
+      tester.widget<Row>(find.byKey(const ValueKey('login-consent-row'))),
+      isA<Row>(),
+    );
     expect(find.byKey(const ValueKey('login-privacy-link')), findsOneWidget);
     expect(find.byKey(const ValueKey('login-agreement-link')), findsOneWidget);
+    final phoneField = tester.widget<TextField>(
+      find.byKey(const ValueKey('login-phone-field')),
+    );
+    expect(phoneField.decoration?.prefixText, isNull);
     final checkboxCenter = tester.getCenter(
       find.byKey(const ValueKey('login-consent-checkbox')),
     );
@@ -1386,6 +1574,7 @@ void main() {
     await tester.tap(find.text('我的'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const ValueKey('guest-guide-mine')), findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-edit-button')), findsNothing);
 
     await tester.tap(find.text('首页'));
     await tester.pump(const Duration(milliseconds: 300));
@@ -1397,6 +1586,22 @@ void main() {
     await tester.tap(homeLogin);
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.text('登录栖护'), findsOneWidget);
+  });
+
+  testWidgets('游客不能修改天气城市', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState.inMemory(seed: false)..enterGuestMode();
+
+    await tester.pumpWidget(PetCareApp(state: state));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('weather-city-button')));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.textContaining('游客模式不能修改个人资料'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('会员协议升级后需要重新确认', (tester) async {
@@ -1460,6 +1665,30 @@ void main() {
       ),
       isNull,
     );
+  });
+
+  test('游客模式不会继承退出账号的资料、头像和照护数据', () {
+    final state = AppState.inMemory();
+    final memberRoom = state.addRoom(name: '会员猫咪房', type: '室内');
+    state.updateProfile(
+      nickname: '会员账号',
+      avatarPath: 'data:image/png;base64,AA==',
+      city: '杭州',
+      careTags: const ['猫猫教'],
+    );
+
+    state.signOut();
+    state.enterGuestMode();
+
+    expect(state.isGuest, isTrue);
+    expect(state.nickname, '游客');
+    expect(state.avatarPath, isNull);
+    expect(state.careTags, isEmpty);
+    expect(state.pets, isEmpty);
+    expect(state.tasks, isEmpty);
+    expect(state.taskDefinitions, isEmpty);
+    expect(state.foodSupplies, isEmpty);
+    expect(state.rooms.any((room) => room.id == memberRoom.id), isFalse);
   });
 
   test('游客数据到期后自动清空并开启新的三天窗口', () {

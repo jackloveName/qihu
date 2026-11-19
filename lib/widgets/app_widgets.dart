@@ -1754,6 +1754,8 @@ class AppSheetFrame extends StatelessWidget {
             Flexible(
               fit: FlexFit.loose,
               child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.fromLTRB(
                   22,
                   0,
@@ -1766,6 +1768,8 @@ class AppSheetFrame extends StatelessWidget {
           else
             Expanded(
               child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.fromLTRB(
                   22,
                   0,
